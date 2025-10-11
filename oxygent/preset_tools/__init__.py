@@ -15,6 +15,7 @@ tool_modules = [
     "python_tools",
     "baidu_search_tools",
     "image_gen_tools",
+    "code_interpreter_tools",
 ]
 
 __all__ = []
