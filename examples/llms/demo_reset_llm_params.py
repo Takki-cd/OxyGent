@@ -1,15 +1,18 @@
-"""gemma_cli_demo.py"""
-
 import asyncio
 import os
 
-from oxygent import MAS, oxy
+from oxygent import MAS, Config, oxy
+
+Config.set_llm_config({})  # 重置LLM默认参数，以适配GPT-5模型
+
 
 oxy_space = [
     oxy.HttpLLM(
         name="default_llm",
-        base_url="http://localhost:11434/api/chat",
-        model_name=os.getenv("DEFAULT_OLLAMA_MODEL"),
+        api_key=os.getenv("DEFAULT_LLM_API_KEY"),
+        base_url=os.getenv("DEFAULT_LLM_BASE_URL"),
+        model_name=os.getenv("DEFAULT_LLM_MODEL_NAME"),
+        llm_params={"thinking": False, "stream": False},
     ),
 ]
 

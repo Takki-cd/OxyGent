@@ -58,8 +58,6 @@ oxygent/mas.py
 | `show_mas_info()` | No | `None` | Display MAS initialization information |
 | `show_org()` | No | `None` | Display organization structure |
 | `init_global_data()` | No | `None` | Initialize the in-memory global data store |
-| `get_global()` | No | `Any` | Get value from global data store |
-| `set_global()` | No | `None` | Set value in global data store |
 | `is_agent()` | No | `bool` | Check if an oxy name is an agent |
 | `init_master_agent_name()` | No | `None` | Initialize the master agent name |
 | `init_agent_organization()` | No | `None` | Build agent organization structure |

@@ -3,17 +3,16 @@
 OxyGent支持使用非常简单的方式设置和修改系统全局数据，这些数据类似于全局变量，能够在MAS中使用`OxyRequest`进行更改与访问。
 
 支持的方法包括：
-+ `get_global`：使用`(key,default_value)`按键值访问全局数据
-+ `set_global`：使用`(key,value)`按键值修改全局数据
-+ `get_all_global`：获取所有的全局数据（返回`dict`）
++ `get_global_data`：使用`(key,default_value)`按键值访问全局数据
++ `set_global_data`：使用`(key,value)`按键值修改全局数据
 
 下面使用全局数据实现简单的计数器。
 
 ```python
 class CounterAgent(BaseAgent):
     async def execute(self, oxy_request: OxyRequest):
-        cnt = oxy_request.get_global("counter", 0) + 1 # 获取计数
-        oxy_request.set_global("counter", cnt) # 存储计数+1
+        cnt = oxy_request.get_global_data("counter", 0) + 1 # 获取计数
+        oxy_request.set_global_data("counter", cnt) # 存储计数+1
 
         return OxyResponse(
             state=OxyState.COMPLETED,
