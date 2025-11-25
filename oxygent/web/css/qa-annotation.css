@@ -1,0 +1,563 @@
+/* Q&A 标注系统样式 - 表格式布局 */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    font-size: 14px;
+}
+
+.page-container {
+    background-color: #fff;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Tab导航 */
+.tab-navigation {
+    display: flex;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 20px;
+}
+
+.tab-item {
+    padding: 12px 24px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: #666;
+    font-weight: 500;
+}
+
+.tab-item.active {
+    color: #1890ff;
+    border-bottom-color: #1890ff;
+    background-color: #f0f7ff;
+}
+
+.tab-item:hover {
+    color: #1890ff;
+}
+
+/* 状态Tab导航 */
+.status-tabs {
+    display: flex;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 16px;
+    background-color: #fafafa;
+    padding: 0;
+}
+
+.status-tab {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #666;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.status-tab.active {
+    color: #1890ff;
+    border-bottom-color: #1890ff;
+    background-color: #fff;
+}
+
+.status-tab:hover {
+    color: #1890ff;
+}
+
+/* 过滤器区域 */
+.filter-section {
+    background-color: #fafafa;
+    padding: 20px 24px;
+    border-radius: 6px;
+    margin-bottom: 10px; /* 可调节：筛选区域与统计区域间距 */
+}
+
+.filter-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px; /* 可调节：元素间距 */
+    margin-bottom: 16px; /* 可调节：行间距 */
+}
+
+.filter-row:last-child {
+    margin-bottom: 0;
+}
+
+/* 筛选区域左侧分组 */
+.filter-left {
+    display: flex;
+    align-items: center;
+    gap: 32px; /* 增加间距 */
+    flex-wrap: wrap;
+    width: 320px; /* 增加宽度以容纳更宽的控件 */
+}
+
+/* 筛选区域右侧分组 */
+.filter-right {
+    display: flex;
+    align-items: center;
+    gap: 32px; /* 增加间距 */
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+/* 让业务域和异常问题的选择框右对齐 */
+.filter-left .filter-group {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.filter-left .filter-group label {
+    margin-right: 12px; /* 增加标签与控件间距 */
+}
+
+.filter-left .filter-group select {
+    width: 240px; /* 增加选择框宽度 */
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+.filter-group select,
+.filter-group input[type="date"] {
+    padding: 6px 16px 6px 12px; /* 可调节：输入框内边距，右侧保持适中间距 */
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 240px; /* 增加宽度以填充更多空间 */
+    height: 32px;
+    line-height: 20px; /* 修复文字遮挡问题 */
+    box-sizing: border-box;
+}
+
+.filter-group select:focus,
+.filter-group input[type="date"]:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.date-separator {
+    color: #999;
+    margin: 0 4px;
+}
+
+.date-btn {
+    padding: 8px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    height: 32px;
+    line-height: 1.5;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-primary {
+    background-color: #1890ff;
+    color: white;
+    border: none;
+    padding: 0 16px; /* 可调节：按钮左右内边距 */
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    height: 32px;
+    line-height: 32px; /* 修复文字垂直居中 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.btn-primary:hover {
+    background-color: #40a9ff;
+}
+
+.btn-secondary {
+    background-color: #fff;
+    color: #666;
+    border: 1px solid #d9d9d9;
+    padding: 0 16px; /* 可调节：按钮左右内边距 */
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    height: 32px;
+    line-height: 32px; /* 修复文字垂直居中 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.btn-secondary:hover {
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+
+/* 统计卡片区域 */
+.stats-section {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 5px; /* 可调节：统计区域与操作区域间距 */
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    background-color: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 16px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.stat-title {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.stat-subtitle {
+    font-size: 12px;
+    color: #999;
+}
+
+.stat-progress {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #666;
+}
+
+.progress-rate {
+    color: #1890ff;
+}
+
+/* 操作按钮区域 */
+.action-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    padding: 12px 0;
+}
+
+.action-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.selected-count {
+    color: #666;
+    font-size: 14px;
+}
+
+.btn-batch,
+.btn-export {
+    padding: 6px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+.btn-batch:hover,
+.btn-export:hover {
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+.action-right {
+    display: flex;
+    gap: 8px;
+}
+
+/* 表格样式 */
+.table-container {
+    background-color: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background-color: #fafafa;
+    padding: 12px 8px;
+    text-align: left;
+    font-weight: 500;
+    color: #333;
+    border-bottom: 1px solid #e8e8e8;
+    font-size: 14px;
+}
+
+.data-table td {
+    padding: 12px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tr:hover {
+    background-color: #f5f5f5;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+    width: 40px;
+    text-align: center;
+}
+
+/* 状态标签 */
+.status-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-pending {
+    background-color: #fff7e6;
+    color: #fa8c16;
+}
+
+.status-evaluating {
+    background-color: #e6f7ff;
+    color: #1890ff;
+}
+
+.status-annotating {
+    background-color: #f6ffed;
+    color: #52c41a;
+}
+
+.status-solving {
+    background-color: #fff2e8;
+    color: #fa541c;
+}
+
+.status-completed {
+    background-color: #f6ffed;
+    color: #52c41a;
+}
+
+.status-expired {
+    background-color: #fff1f0;
+    color: #ff4d4f;
+}
+
+/* 评测结果标签 */
+.result-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.result-satisfied {
+    color: #52c41a;
+}
+
+.result-unsatisfied {
+    color: #ff4d4f;
+}
+
+.result-very-satisfied {
+    color: #1890ff;
+}
+
+.result-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.result-satisfied .result-icon {
+    background-color: #52c41a;
+}
+
+.result-unsatisfied .result-icon {
+    background-color: #ff4d4f;
+}
+
+.result-very-satisfied .result-icon {
+    background-color: #1890ff;
+}
+
+/* 操作链接 */
+.action-link {
+    color: #1890ff;
+    text-decoration: none;
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.action-link:hover {
+    text-decoration: underline;
+}
+
+/* 分页器 */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 14px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-btn {
+    padding: 6px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+.page-btn:hover {
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+.page-btn.active {
+    background-color: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+}
+
+.page-ellipsis {
+    padding: 6px 4px;
+    color: #999;
+}
+
+.pagination-size select {
+    padding: 6px 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* 业务域标签 */
+.domain-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: #f0f0f0;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #666;
+    margin-right: 4px;
+}
+
+/* 编辑图标 */
+.edit-icon {
+    color: #999;
+    font-size: 12px;
+    margin-left: 4px;
+    cursor: pointer;
+}
+
+.edit-icon:hover {
+    color: #1890ff;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+    .stats-section {
+        flex-direction: column;
+    }
+    
+    .stat-card {
+        min-width: auto;
+    }
+    
+    .filter-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .filter-left,
+    .filter-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .action-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-container {
+        padding: 10px;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+    }
+    
+    .data-table {
+        min-width: 800px;
+    }
+    
+    .pagination-container {
+        flex-direction: column;
+        gap: 12px;
+    }
+}

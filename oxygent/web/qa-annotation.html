@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
+    <title>Q&A 标注系统 - OxyGent</title>
+    <link rel="stylesheet" href="./css/qa-annotation.css">
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+</head>
+<body>
+    <div class="page-container">
+        <!-- 顶部Tab导航 -->
+        <div class="tab-navigation">
+            <div class="tab-item active">Query评测</div>
+            <div class="tab-item">评测集</div>
+        </div>
+
+        <!-- 状态Tab导航 -->
+        <div class="status-tabs">
+            <div class="status-tab active" data-status="all">全部</div>
+            <div class="status-tab" data-status="pending">待分配</div>
+            <div class="status-tab" data-status="evaluating">待测评</div>
+            <div class="status-tab" data-status="annotating">待标注</div>
+            <div class="status-tab" data-status="solving">待解决</div>
+            <div class="status-tab" data-status="completed">已完成</div>
+            <div class="status-tab" data-status="expired">已过期</div>
+        </div>
+
+        <!-- 过滤器区域 -->
+        <div class="filter-section">
+            <div class="filter-row">
+                <div class="filter-left">
+                    <div class="filter-group">
+                        <label>业务域</label>
+                        <select id="businessDomain">
+                            <option value="">请选择</option>
+                            <option value="商品">商品</option>
+                            <option value="价格">价格</option>
+                            <option value="促销">促销</option>
+                            <option value="推广">推广</option>
+                            <option value="数据">数据</option>
+                            <option value="供应商">供应商</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-right">
+                    <div class="filter-group">
+                        <label>导入日期</label>
+                        <input type="date" id="startDate" value="2025-07-18">
+                        <span class="date-separator">-</span>
+                        <input type="date" id="endDate" value="2025-07-19">
+                    </div>
+
+                    <div class="filter-group">
+                        <label>执行人</label>
+                        <select id="executor">
+                            <option value="">请选择</option>
+                            <option value="评测人A">评测人A</option>
+                            <option value="评测人B">评测人B</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>评测结果</label>
+                        <select id="evaluationResult">
+                            <option value="">请选择</option>
+                            <option value="满意">满意</option>
+                            <option value="不满意">不满意</option>
+                            <option value="非常满意">非常满意</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="filter-row">
+                <div class="filter-left">
+                    <div class="filter-group">
+                        <label>异常问题</label>
+                        <select id="abnormalIssue">
+                            <option value="">请选择</option>
+                            <option value="内容异常">内容异常</option>
+                            <option value="表达异常">表达异常</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-right">
+                    <div class="filter-actions">
+                        <button class="btn-primary" onclick="searchData()">查询</button>
+                        <button class="btn-secondary" onclick="resetFilters()">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计卡片区域 -->
+        <div class="stats-section">
+            <div class="stat-card">
+                <div class="stat-title">Query总数</div>
+                <div class="stat-number">10,618</div>
+                <div class="stat-subtitle">近一周 11/16-11/21</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">待分配</div>
+                <div class="stat-number">34</div>
+                <div class="stat-progress">
+                    <span>已分配 234</span>
+                    <span class="progress-rate">进度99.7%</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">待测评</div>
+                <div class="stat-number">1,618</div>
+                <div class="stat-progress">
+                    <span>已测评 997</span>
+                    <span class="progress-rate">进度40.7%</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">待标注</div>
+                <div class="stat-number">45</div>
+                <div class="stat-progress">
+                    <span>已标注 234</span>
+                    <span class="progress-rate">进度40.7%</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">待解决</div>
+                <div class="stat-number">56</div>
+                <div class="stat-progress">
+                    <span>已解决 434</span>
+                    <span class="progress-rate">进度40.7%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮区域 -->
+        <div class="action-section">
+            <div class="action-left">
+                <span class="selected-count">已选 2 条</span>
+                <button class="btn-batch">批量导入</button>
+                <button class="btn-batch">批量分配</button>
+                <button class="btn-batch">批量解决</button>
+                <button class="btn-batch">批量编辑业务域</button>
+                <button class="btn-batch">批量删除</button>
+            </div>
+            <div class="action-right">
+                <button class="btn-export">下载模板</button>
+                <button class="btn-export">批量导出</button>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Query</th>
+                        <th>业务域</th>
+                        <th>导入日期</th>
+                        <th>近7天提问次数</th>
+                        <th>状态</th>
+                        <th>评测结果</th>
+                        <th>具体问题</th>
+                        <th>执行人</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- 数据行将通过JavaScript动态生成 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页器 -->
+        <div class="pagination-container">
+            <div class="pagination-info">共 100 条</div>
+            <div class="pagination-controls">
+                <button class="page-btn" onclick="goToPage('prev')">‹</button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+                <button class="page-btn">4</button>
+                <button class="page-btn">5</button>
+                <button class="page-btn">6</button>
+                <span class="page-ellipsis">...</span>
+                <button class="page-btn">50</button>
+                <button class="page-btn" onclick="goToPage('next')">›</button>
+            </div>
+            <div class="pagination-size">
+                <select>
+                    <option>100条/页</option>
+                    <option>50条/页</option>
+                    <option>20条/页</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/qa-annotation.js"></script>
+</body>
+</html>
