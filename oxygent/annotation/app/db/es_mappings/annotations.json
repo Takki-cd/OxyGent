@@ -1,0 +1,24 @@
+{
+  "mappings": {
+    "properties": {
+      "id": { "type": "keyword" },
+      "qa_id": { "type": "keyword" },
+      "trace_id": { "type": "keyword" },
+      "source_index": { "type": "keyword" },
+      "source_id": { "type": "keyword" },
+      "user_query": { "type": "text" },
+      "agent_response": { "type": "text" },
+      "annotations": { "type": "object", "enabled": true },
+      "status": { "type": "keyword" },
+      "version": { "type": "integer" },
+      "annotator_id": { "type": "keyword" },
+      "annotator_name": { "type": "keyword" },
+      "annotated_at": { "type": "date" },
+      "reviewed_by": { "type": "keyword" },
+      "reviewed_at": { "type": "date" },
+      "tags": { "type": "keyword" },
+      "raw": { "type": "object", "enabled": true },
+      "created_at": { "type": "date" }
+    }
+  }
+}

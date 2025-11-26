@@ -1,0 +1,11 @@
+# p, role, object, action
+p, admin, annotations, write
+p, admin, annotations, read
+p, admin, tasks, assign
+p, manager, tasks, assign
+p, reviewer, annotations, review
+p, annotator, annotations, write
+
+# role bindings example (user -> role)
+g, admin_user, admin
+g, alice_annotator, annotator
