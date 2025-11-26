@@ -45,10 +45,8 @@
                             <option value="供应商">供应商</option>
                         </select>
                     </div>
-                </div>
 
-                <div class="filter-right">
-                    <div class="filter-group">
+                    <div class="filter-group date-range">
                         <label>导入日期</label>
                         <input type="date" id="startDate" value="2025-07-18">
                         <span class="date-separator">-</span>
@@ -63,7 +61,9 @@
                             <option value="评测人B">评测人B</option>
                         </select>
                     </div>
+                </div>
 
+                <div class="filter-right">
                     <div class="filter-group">
                         <label>评测结果</label>
                         <select id="evaluationResult">
@@ -73,11 +73,7 @@
                             <option value="非常满意">非常满意</option>
                         </select>
                     </div>
-                </div>
-            </div>
-            
-            <div class="filter-row">
-                <div class="filter-left">
+
                     <div class="filter-group">
                         <label>异常问题</label>
                         <select id="abnormalIssue">
@@ -86,9 +82,7 @@
                             <option value="表达异常">表达异常</option>
                         </select>
                     </div>
-                </div>
 
-                <div class="filter-right">
                     <div class="filter-actions">
                         <button class="btn-primary" onclick="searchData()">查询</button>
                         <button class="btn-secondary" onclick="resetFilters()">重置</button>

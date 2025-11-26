@@ -35,13 +35,13 @@ body {
 }
 
 .tab-item.active {
-    color: #1890ff;
-    border-bottom-color: #1890ff;
-    background-color: #f0f7ff;
+    color: #3768FA;
+    border-bottom-color: #3768FA;
+    background-color: #f0f4ff;
 }
 
 .tab-item:hover {
-    color: #1890ff;
+    color: #3768FA;
 }
 
 /* 状态Tab导航 */
@@ -63,74 +63,57 @@ body {
 }
 
 .status-tab.active {
-    color: #1890ff;
-    border-bottom-color: #1890ff;
+    color: #3768FA;
+    border-bottom-color: #3768FA;
     background-color: #fff;
 }
 
 .status-tab:hover {
-    color: #1890ff;
+    color: #3768FA;
 }
 
 /* 过滤器区域 */
 .filter-section {
     background-color: #fafafa;
-    padding: 20px 24px;
+    padding: 16px 20px;
     border-radius: 6px;
-    margin-bottom: 10px; /* 可调节：筛选区域与统计区域间距 */
+    margin-bottom: 10px;
+    border: 1px solid #e8e8e8;
 }
 
 .filter-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 20px;
     flex-wrap: wrap;
-    gap: 16px; /* 可调节：元素间距 */
-    margin-bottom: 16px; /* 可调节：行间距 */
+    justify-content: flex-start;
 }
 
 .filter-row:last-child {
     margin-bottom: 0;
 }
 
-/* 筛选区域左侧分组 */
+/* 筛选区域 - 统一流式布局 */
 .filter-left {
     display: flex;
     align-items: center;
-    gap: 32px; /* 增加间距 */
+    gap: 20px;
     flex-wrap: wrap;
-    width: 320px; /* 增加宽度以容纳更宽的控件 */
 }
 
-/* 筛选区域右侧分组 */
 .filter-right {
     display: flex;
     align-items: center;
-    gap: 32px; /* 增加间距 */
+    gap: 20px;
     flex-wrap: wrap;
-    flex: 1;
-}
-
-/* 让业务域和异常问题的选择框右对齐 */
-.filter-left .filter-group {
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-}
-
-.filter-left .filter-group label {
-    margin-right: 12px; /* 增加标签与控件间距 */
-}
-
-.filter-left .filter-group select {
-    width: 240px; /* 增加选择框宽度 */
+    margin-left: 0;
 }
 
 .filter-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .filter-group label {
@@ -138,30 +121,42 @@ body {
     color: #333;
     white-space: nowrap;
     font-size: 14px;
+    min-width: fit-content;
 }
 
 .filter-group select,
 .filter-group input[type="date"] {
-    padding: 6px 16px 6px 12px; /* 可调节：输入框内边距，右侧保持适中间距 */
+    padding: 5px 12px;
     border: 1px solid #d9d9d9;
     border-radius: 4px;
     font-size: 14px;
-    width: 240px; /* 增加宽度以填充更多空间 */
+    width: 140px;
     height: 32px;
-    line-height: 20px; /* 修复文字遮挡问题 */
+    line-height: 20px;
     box-sizing: border-box;
+    background-color: #fff;
 }
 
 .filter-group select:focus,
 .filter-group input[type="date"]:focus {
     outline: none;
-    border-color: #1890ff;
-    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    border-color: #3768FA;
+    box-shadow: 0 0 0 2px rgba(55, 104, 250, 0.2);
+}
+
+/* 日期范围特殊处理 */
+.filter-group.date-range {
+    gap: 4px;
+}
+
+.filter-group.date-range input[type="date"] {
+    width: 140px;
 }
 
 .date-separator {
     color: #999;
-    margin: 0 4px;
+    margin: 0 2px;
+    font-size: 12px;
 }
 
 .date-btn {
@@ -177,18 +172,19 @@ body {
 .filter-actions {
     display: flex;
     gap: 8px;
+    margin-left: auto;
 }
 
 .btn-primary {
-    background-color: #1890ff;
+    background-color: #3768FA;
     color: white;
     border: none;
-    padding: 0 16px; /* 可调节：按钮左右内边距 */
+    padding: 0 16px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
     height: 32px;
-    line-height: 32px; /* 修复文字垂直居中 */
+    line-height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -203,12 +199,12 @@ body {
     background-color: #fff;
     color: #666;
     border: 1px solid #d9d9d9;
-    padding: 0 16px; /* 可调节：按钮左右内边距 */
+    padding: 0 16px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
     height: 32px;
-    line-height: 32px; /* 修复文字垂直居中 */
+    line-height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -216,16 +212,15 @@ body {
 }
 
 .btn-secondary:hover {
-    border-color: #1890ff;
-    color: #1890ff;
+    border-color: #3768FA;
+    color: #3768FA;
 }
-
 
 /* 统计卡片区域 */
 .stats-section {
     display: flex;
     gap: 16px;
-    margin-bottom: 5px; /* 可调节：统计区域与操作区域间距 */
+    margin-bottom: 5px;
     flex-wrap: wrap;
 }
 
@@ -264,7 +259,7 @@ body {
 }
 
 .progress-rate {
-    color: #1890ff;
+    color: #3768FA;
 }
 
 /* 操作按钮区域 */
@@ -300,8 +295,8 @@ body {
 
 .btn-batch:hover,
 .btn-export:hover {
-    border-color: #1890ff;
-    color: #1890ff;
+    border-color: #3768FA;
+    color: #3768FA;
 }
 
 .action-right {
@@ -365,8 +360,8 @@ body {
 }
 
 .status-evaluating {
-    background-color: #e6f7ff;
-    color: #1890ff;
+    background-color: #e8f0ff;
+    color: #3768FA;
 }
 
 .status-annotating {
@@ -398,7 +393,7 @@ body {
 }
 
 .result-satisfied {
-    color: #52c41a;
+    color: #3768FA;
 }
 
 .result-unsatisfied {
@@ -406,7 +401,7 @@ body {
 }
 
 .result-very-satisfied {
-    color: #1890ff;
+    color: #52c41a;
 }
 
 .result-icon {
@@ -416,7 +411,7 @@ body {
 }
 
 .result-satisfied .result-icon {
-    background-color: #52c41a;
+    background-color: #3768FA;
 }
 
 .result-unsatisfied .result-icon {
@@ -424,12 +419,12 @@ body {
 }
 
 .result-very-satisfied .result-icon {
-    background-color: #1890ff;
+    background-color: #52c41a;
 }
 
 /* 操作链接 */
 .action-link {
-    color: #1890ff;
+    color: #3768FA;
     text-decoration: none;
     margin-right: 8px;
     font-size: 14px;
@@ -469,13 +464,13 @@ body {
 }
 
 .page-btn:hover {
-    border-color: #1890ff;
-    color: #1890ff;
+    border-color: #3768FA;
+    color: #3768FA;
 }
 
 .page-btn.active {
-    background-color: #1890ff;
-    border-color: #1890ff;
+    background-color: #3768FA;
+    border-color: #3768FA;
     color: #fff;
 }
 
@@ -511,10 +506,29 @@ body {
 }
 
 .edit-icon:hover {
-    color: #1890ff;
+    color: #3768FA;
 }
 
 /* 响应式设计 */
+@media (max-width: 1400px) {
+    .filter-left {
+        gap: 16px;
+    }
+    
+    .filter-right {
+        gap: 16px;
+    }
+    
+    .filter-group select,
+    .filter-group input[type="date"] {
+        width: 120px;
+    }
+    
+    .filter-group.date-range input[type="date"] {
+        width: 110px;
+    }
+}
+
 @media (max-width: 1200px) {
     .stats-section {
         flex-direction: column;
@@ -525,14 +539,13 @@ body {
     }
     
     .filter-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        gap: 16px;
     }
     
-    .filter-left,
     .filter-right {
-        width: 100%;
+        margin-left: 0;
+        margin-top: 0;
+        width: auto;
         justify-content: flex-start;
     }
     
@@ -546,6 +559,39 @@ body {
 @media (max-width: 768px) {
     .page-container {
         padding: 10px;
+    }
+    
+    .filter-section {
+        padding: 12px 16px;
+    }
+    
+    .filter-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .filter-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .filter-group select,
+    .filter-group input[type="date"] {
+        width: 160px;
+        flex-shrink: 0;
+    }
+    
+    .filter-right {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 8px;
+        justify-content: flex-end;
+    }
+    
+    .filter-actions {
+        width: 100%;
+        justify-content: flex-end;
     }
     
     .table-container {
