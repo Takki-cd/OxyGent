@@ -25,6 +25,7 @@ class DummyMAS:
         self.name = "test_mas"
         self.background_tasks = set()
         self.send_message = AsyncMock()
+        self.func_process_message = lambda dict_message, oxy_request: dict_message
 
 
 # ──────────────────────────────────────────────────────────────────────────────

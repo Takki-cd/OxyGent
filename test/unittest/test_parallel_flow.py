@@ -20,6 +20,7 @@ class DummyMAS:
         self.message_prefix = "msg"
         self.name = "test_mas"
         self.send_message = AsyncMock()
+        self.func_process_message = lambda dict_message, oxy_request: dict_message
 
 
 # ──────────────────────────────────────────────────────────────────────────────

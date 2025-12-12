@@ -22,6 +22,7 @@ class DummyMAS:
         self.background_tasks = set()
         self.message_prefix = "msg"
         self.name = "ut_mas"
+        self.func_process_message = lambda dict_message, oxy_request: dict_message
 
     async def send_message(self, message, redis_key, group_id=""):
         self.last_msg = (redis_key, message)
