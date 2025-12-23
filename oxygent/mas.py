@@ -236,7 +236,7 @@ class MAS(BaseModel):
         try:
             from .live_prompt import setup_dynamic_agents
             await setup_dynamic_agents(self)
-            logger.info("🔧 Dynamic agent management initialized")
+            logger.info("Dynamic agent management initialized")
         except Exception as e:
             logger.warning(f"Failed to setup dynamic agents: {e}")
 
