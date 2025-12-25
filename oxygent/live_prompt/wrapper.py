@@ -36,10 +36,11 @@ class DynamicAgentManager:
 
                 # Check if this agent uses live prompts by examining its prompt
                 if self._agent_uses_live_prompts(agent_instance):
-                    prompt_key = f"{agent_name}_prompt"
+                    # Use agent's custom prompt_key if set, otherwise default to {agent_name}_prompt
+                    prompt_key = getattr(agent_instance, 'prompt_key', None) or f"{agent_name}_prompt"
                     self.agent_prompt_mapping[agent_name] = prompt_key
                     live_prompt_agents.append(agent_name)
-                    logger.info(f"Registered live prompt agent: {agent_name}")
+                    logger.info(f"Registered live prompt agent: {agent_name} with key: {prompt_key}")
                 else:
                     logger.debug(f"Skipping agent without live prompts: {agent_name}")
 
@@ -234,7 +235,8 @@ async def auto_save_agent_prompts_to_database(mas_instance):
         # Save prompts for registered live prompt agents only
         for agent_name in dynamic_agent_manager.agent_prompt_mapping.keys():
             agent_instance = mas_instance.oxy_name_to_oxy[agent_name]
-            prompt_key = f"{agent_name}_prompt"
+            # Use the prompt_key that was registered (may be custom or default)
+            prompt_key = dynamic_agent_manager.agent_prompt_mapping[agent_name]
 
             # Skip if prompt already exists in database
             if prompt_key in existing_keys:
