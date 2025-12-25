@@ -7,6 +7,7 @@ from .agents import (
     WorkflowAgent,
 )
 from .api_tools import HttpTool
+from .bank_tools import BankClient, BankTool
 from .base_oxy import Oxy
 from .flows import (
     MathReflexion,
@@ -42,4 +43,6 @@ __all__ = [
     "PlanAndSolve",
     "Reflexion",
     "MathReflexion",
+    "BankClient",
+    "BankTool",
 ]
