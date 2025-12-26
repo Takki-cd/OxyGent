@@ -135,8 +135,9 @@ class MAS(BaseModel):
         # Register this MAS instance globally for API access
         try:
             from .routes import set_global_mas_instance
+
             set_global_mas_instance(self)
-            logger.info("Registered MAS instance globally for API access")
+            logger.debug("Registered MAS instance globally for API access")
         except Exception as e:
             logger.warning(f"Failed to register MAS instance globally: {e}")
 
@@ -235,12 +236,16 @@ class MAS(BaseModel):
         self.show_org()
 
         # Setup dynamic agents for live prompt management
+        logger.info("📋 OxyGent MAS Management Initialization")
+        logger.info("=" * 64)
         try:
             from .live_prompt import setup_dynamic_agents
+
             await setup_dynamic_agents(self)
-            logger.info("Dynamic agent management initialized")
+            logger.debug("Dynamic agent management initialized")
         except Exception as e:
             logger.warning(f"Failed to setup dynamic agents: {e}")
+        logger.info("=" * 64)
 
     async def cleanup_servers(self) -> None:
         """Gracefully shut down remote servers/clients.
@@ -384,6 +389,47 @@ class MAS(BaseModel):
                 "settings": Config.get_es_settings_config(),
             },
         )
+        # prompt table
+        await self.es_client.create_index(
+            Config.get_app_name() + "_prompt",
+            {
+                "mappings": {
+                    "properties": {
+                        "prompt_key": {
+                            "type": "keyword"  # Prompt key for exact matching
+                        },
+                        "prompt_content": {
+                            "type": "text",
+                            "analyzer": "standard",  # Prompt content
+                        },
+                        "description": {
+                            "type": "text"  # Prompt description
+                        },
+                        "category": {
+                            "type": "keyword"  # Category: system, expert, workflow, etc.
+                        },
+                        "agent_type": {
+                            "type": "keyword"  # Corresponding Agent type
+                        },
+                        "version": {
+                            "type": "integer"  # Version number
+                        },
+                        "is_active": {
+                            "type": "boolean"  # Whether active
+                        },
+                        "created_at": {"type": "date"},
+                        "updated_at": {"type": "date"},
+                        "created_by": {
+                            "type": "keyword"  # Creator
+                        },
+                        "tags": {
+                            "type": "keyword"  # Tags
+                        },
+                    }
+                },
+                "settings": Config.get_es_settings_config(),
+            },
+        )
 
         # init redis client
         redis_config = Config.get_redis_config()
@@ -477,7 +523,9 @@ class MAS(BaseModel):
                     agent_organization[-1]["children"] = []
 
                 tool_name_list = []
-                for tool_name in agent.permitted_tool_name_list + agent.permitted_oxy:
+                for tool_name in list(
+                    set(agent.permitted_tool_name_list + agent.permitted_oxy)
+                ):
                     # if not agent.is_sourcing_tools and tool_name == 'retrieve_tools':
                     #     continue
                     tool_name_list.append(tool_name)
@@ -1151,7 +1199,7 @@ class MAS(BaseModel):
                             "name": node.get("name", ""),
                             "desc": node.get("desc", ""),
                             "type": node.get("type", "agent"),
-                            "path": node.get("path", [])
+                            "path": node.get("path", []),
                         }
                         agents.append(agent_info)
 
@@ -1162,12 +1210,10 @@ class MAS(BaseModel):
                             extract_agents(child)
 
             # Extract agents from organization structure
-            if hasattr(self, 'agent_organization') and self.agent_organization:
+            if hasattr(self, "agent_organization") and self.agent_organization:
                 extract_agents(self.agent_organization)
 
-            return WebResponse(
-                data={"agents": agents}
-            ).to_dict()
+            return WebResponse(data={"agents": agents}).to_dict()
 
         async def request_to_payload(request: Request):
             if request.method == "GET":

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class JesEs(BaseEs):
-    def __init__(self, hosts, user, password, maxsize=200, timeout=20):
+    def __init__(self, hosts, user, password, maxsize=200, timeout=60):
         try:
             self.client = Elasticsearch(
                 hosts, http_auth=(user, password), maxsize=maxsize, timeout=timeout
@@ -42,7 +42,9 @@ class JesEs(BaseEs):
         if not body:
             raise ValueError("The config of the index ca not be empty")
 
-        # await self.client.indices.delete(index=index_name)  # !!! delete table
+        # await self._run_sync(
+        #     self.client.indices.delete, index=index_name
+        # )  # !!! delete table
         # Create the index if not exists
         if not await self._index_exists(index_name):
             return await self._create_new_index(index_name, body)
