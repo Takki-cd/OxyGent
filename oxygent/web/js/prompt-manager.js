@@ -21,6 +21,7 @@ function initDOMCache() {
     dom.editModal = document.getElementById('edit-modal');
     dom.historyModal = document.getElementById('history-modal');
     dom.previewModal = document.getElementById('preview-modal');
+    dom.rollbackModal = document.getElementById('rollback-modal');
     dom.editForm = document.getElementById('edit-form');
     dom.editKey = document.getElementById('edit_prompt_key');
     dom.editContent = document.getElementById('edit_prompt_content');
@@ -30,6 +31,8 @@ function initDOMCache() {
     dom.previewDateInfo = document.getElementById('preview-date-info');
     dom.previewStats = document.getElementById('preview-stats');
     dom.previewRollbackBtn = document.getElementById('preview-rollback-btn');
+    dom.rollbackMessage = document.getElementById('rollback-message');
+    dom.confirmRollbackBtn = document.getElementById('confirm-rollback-btn');
 }
 
 // Optimized debounce with immediate option
@@ -77,8 +80,10 @@ function handleSearchInput(e) {
 
 function handleKeydown(e) {
     if (e.key === 'Escape') {
-        // Close modals in priority order - preview first, then others
-        if (dom.previewModal && dom.previewModal.style.display === 'block') {
+        // Close modals in priority order - rollback first, then preview, then others
+        if (dom.rollbackModal && dom.rollbackModal.style.display === 'block') {
+            hideRollbackModal();
+        } else if (dom.previewModal && dom.previewModal.style.display === 'block') {
             hidePreviewModal();
         } else if (dom.editModal && dom.editModal.style.display === 'block') {
             hideEditModal();
@@ -91,7 +96,9 @@ function handleKeydown(e) {
 function handleModalClicks(e) {
     if (e.target.classList.contains('modal')) {
         // Close the specific modal that was clicked
-        if (e.target.id === 'preview-modal') {
+        if (e.target.id === 'rollback-modal') {
+            hideRollbackModal();
+        } else if (e.target.id === 'preview-modal') {
             hidePreviewModal();
         } else if (e.target.id === 'edit-modal') {
             hideEditModal();
@@ -228,14 +235,17 @@ function createPromptCard(prompt) {
             ${escapeHtml(truncatedContent)}
         </div>
         <div class="prompt-actions">
-            <button class="btn btn-sm btn-info" onclick="editPrompt('${escapeHtml(prompt.prompt_key)}')">
+            <button class="btn btn-sm btn-primary" onclick="editPrompt('${escapeHtml(prompt.prompt_key)}')">
                 ✏️ Edit
+                <span class="btn-badge"></span>
             </button>
-            <button class="btn btn-sm btn-success" onclick="refreshPrompt('${escapeHtml(prompt.prompt_key)}')">
+            <button class="btn btn-sm btn-primary" onclick="refreshPrompt('${escapeHtml(prompt.prompt_key)}')">
                 🔄 Refresh
+                <span class="btn-badge"></span>
             </button>
-            <button class="btn btn-sm btn-warning" onclick="showVersionHistory('${escapeHtml(prompt.prompt_key)}')">
+            <button class="btn btn-sm btn-primary" onclick="showVersionHistory('${escapeHtml(prompt.prompt_key)}')">
                 📋 History
+                <span class="btn-badge"></span>
             </button>
         </div>
     `;
@@ -422,12 +432,14 @@ function renderVersionHistory(versions, promptKey) {
                 <div class="version-date">📅 ${date}</div>
             </div>
             <div class="version-actions">
-                <button class="btn btn-sm btn-info" onclick="previewVersion('${escapeHtml(promptKey)}', ${version.version})">
-                    👁️ Preview
-                </button>
                 ${!isCurrent ? `<button class="btn btn-sm btn-warning" onclick="rollbackToVersion('${escapeHtml(promptKey)}', ${version.version})">
                     ↩️ Rollback
+                    <span class="btn-badge"></span>
                 </button>` : ''}
+                <button class="btn btn-sm btn-primary" onclick="previewVersion('${escapeHtml(promptKey)}', ${version.version})">
+                    👁️ Preview
+                    <span class="btn-badge"></span>
+                </button>
             </div>
         `;
 
@@ -479,17 +491,17 @@ function updatePreviewModal(versionData, promptKey, version) {
 
     // Update date info
     const date = new Date(versionData.created_at || Date.now()).toLocaleString();
-    dom.previewDateInfo.textContent = `📅 ${date}`;
+    dom.previewDateInfo.innerHTML = `&nbsp;&nbsp;📅 ${date}`;
 
     // Update stats
     const content = versionData.prompt_content || '';
-    const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
+    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     const charCount = content.length;
     const lineCount = content.split('\n').length;
 
     dom.previewStats.innerHTML = `
-        <span>📝 ${wordCount} words</span> •
-        <span>🔤 ${charCount} characters</span> •
+        <span>📝 ${wordCount} words</span>
+        <span>🔡 ${charCount} characters</span>
         <span>📄 ${lineCount} lines</span>
     `;
 
@@ -498,8 +510,8 @@ function updatePreviewModal(versionData, promptKey, version) {
     dom.previewContent.className = 'preview-content wrapped';
 
     // Update rollback button
+    dom.previewRollbackBtn.innerHTML = `Rollback to this version <span class="btn-badge"></span>`;
     dom.previewRollbackBtn.onclick = () => {
-        hidePreviewModal();
         rollbackToVersion(promptKey, version);
     };
 }
@@ -517,7 +529,8 @@ function hidePreviewModal() {
         dom.previewModal.style.display = 'none';
         // Only restore body overflow if no other modals are open
         const otherModalsOpen = (dom.editModal && dom.editModal.style.display === 'block') ||
-                               (dom.historyModal && dom.historyModal.style.display === 'block');
+                               (dom.historyModal && dom.historyModal.style.display === 'block') ||
+                               (dom.rollbackModal && dom.rollbackModal.style.display === 'block');
         if (!otherModalsOpen) {
             document.body.style.overflow = 'auto';
         }
@@ -587,35 +600,58 @@ function showCopyFeedback() {
 }
 
 async function rollbackToVersion(promptKey, version) {
-    if (!confirm(`Are you sure you want to rollback "${promptKey}" to version ${version}?\n\nThis will create a new version with the content from version ${version}.`)) {
-        return;
+    // Show new modern modal instead of confirm()
+    dom.rollbackMessage.textContent = `Are you sure you want to rollback "${promptKey}" to version ${version}?`;
+    showRollbackModal();
+
+    dom.confirmRollbackBtn.onclick = async () => {
+        hideRollbackModal();
+        try {
+            showNotification('Rolling back to version ' + version + '...', 'info');
+
+            const response = await fetch(`/api/prompts/${promptKey}/revert/${version}`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('Successfully rolled back to version ' + version + '!', 'success');
+                hidePreviewModal(); // Hide preview if it was open
+                hideHistoryModal();
+                await loadPrompts();
+                console.log(`↩️ Rolled back ${promptKey} to version ${version}`);
+            } else {
+                throw new Error(result.message || 'Rollback failed');
+            }
+        } catch (error) {
+            console.error('❌ Error rolling back:', error);
+            showNotification('Failed to rollback: ' + error.message, 'error');
+        }
+    };
+}
+
+function showRollbackModal() {
+    if (dom.rollbackModal) {
+        dom.rollbackModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
     }
+}
 
-    try {
-        showNotification('Rolling back to version ' + version + '...', 'info');
-
-        const response = await fetch(`/api/prompts/${promptKey}/revert/${version}`, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json' }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+function hideRollbackModal() {
+    if (dom.rollbackModal) {
+        dom.rollbackModal.style.display = 'none';
+        // Only restore body overflow if no other main modals are open
+        const otherModalsOpen = (dom.editModal && dom.editModal.style.display === 'block') ||
+                               (dom.historyModal && dom.historyModal.style.display === 'block');
+        if (!otherModalsOpen) {
+            document.body.style.overflow = 'auto';
         }
-
-        const result = await response.json();
-
-        if (result.success) {
-            showNotification('Successfully rolled back to version ' + version + '!', 'success');
-            hideHistoryModal();
-            await loadPrompts();
-            console.log(`↩️ Rolled back ${promptKey} to version ${version}`);
-        } else {
-            throw new Error(result.message || 'Rollback failed');
-        }
-    } catch (error) {
-        console.error('❌ Error rolling back:', error);
-        showNotification('Failed to rollback: ' + error.message, 'error');
     }
 }
 

@@ -69,7 +69,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="savePrompt()">Save Changes</button>
+                <button type="button" class="btn btn-primary" onclick="savePrompt()">Save Changes <span class="btn-badge"></span></button>
             </div>
         </div>
     </div>
@@ -82,19 +82,19 @@
                 <button class="close" onclick="hidePreviewModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="preview-info" style="margin-bottom: 15px; padding: 10px; background: #F9FAFB; border-radius: 4px;">
-                    <div class="preview-meta" style="margin-bottom: 5px;">
-                        <span class="preview-version" id="preview-version-info" style="font-weight: bold; margin-right: 10px;"></span>
-                        <span class="preview-date" id="preview-date-info" style="color: #666;"></span>
+                <div class="preview-info">
+                    <div class="preview-meta">
+                        <span class="preview-version" id="preview-version-info"></span>
+                        <span class="preview-date" id="preview-date-info"></span>
                     </div>
-                    <div class="preview-stats" id="preview-stats" style="font-size: 12px; color: #888;"></div>
+                    <div class="preview-stats" id="preview-stats"></div>
                 </div>
                 <div class="preview-content-container">
-                    <div class="preview-content-header" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="font-weight: 500;">Content</span>
-                        <div class="preview-actions" style="display: flex; gap: 5px;">
+                    <div class="preview-content-header">
+                        <h3>Content</h3>
+                        <div class="preview-actions">
                             <button class="btn btn-sm btn-secondary" onclick="copyPreviewContent()">Copy</button>
-                            <button class="btn btn-sm btn-info" onclick="togglePreviewMode()">View Mode</button>
+                            <button class="btn btn-sm btn-primary" onclick="togglePreviewMode()">View Mode</button>
                         </div>
                     </div>
                     <div class="preview-content" id="preview-content">
@@ -105,7 +105,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="hidePreviewModal()">Close</button>
                 <button type="button" class="btn btn-warning" id="preview-rollback-btn">
-                    Rollback to this version
+                    Rollback to this version <span class="btn-badge"></span>
                 </button>
             </div>
         </div>
@@ -125,6 +125,24 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="hideHistoryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rollback Confirmation Modal -->
+    <div id="rollback-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px; height: auto; margin-top: 15vh;">
+            <div class="modal-header">
+                <h2>Confirm Rollback</h2>
+                <button class="close" onclick="hideRollbackModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="rollback-message" style="margin-bottom: 20px; line-height: 1.6;"></p>
+                <p style="color: #666; font-size: 14px;">This will create a new version with the content from the selected version.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideRollbackModal()">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirm-rollback-btn">Confirm <span class="btn-badge"></span></button>
             </div>
         </div>
     </div>
