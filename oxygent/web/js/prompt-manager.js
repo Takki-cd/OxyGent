@@ -8,7 +8,8 @@ const state = {
     prompts: [],
     filteredPrompts: [],
     currentPrompt: null,
-    isLoading: false
+    isLoading: false,
+    editOriginalContent: ''
 };
 
 // DOM cache - Performance optimization
@@ -25,6 +26,7 @@ function initDOMCache() {
     dom.editForm = document.getElementById('edit-form');
     dom.editKey = document.getElementById('edit_prompt_key');
     dom.editContent = document.getElementById('edit_prompt_content');
+    dom.saveButton = document.getElementById('save-prompt-btn');
     dom.versionList = document.getElementById('version-list');
     dom.previewContent = document.getElementById('preview-content');
     dom.previewVersionInfo = document.getElementById('preview-version-info');
@@ -71,6 +73,7 @@ function setupEventListeners() {
 
     // Form submission
     dom.editForm?.addEventListener('submit', handleFormSubmit);
+    dom.editContent?.addEventListener('input', debounce(updateSaveButtonState, 150));
 }
 
 function handleSearchInput(e) {
@@ -285,6 +288,8 @@ async function editPrompt(promptKey) {
             state.currentPrompt = result.data;
             dom.editKey.value = state.currentPrompt.prompt_key;
             dom.editContent.value = state.currentPrompt.prompt_content;
+            state.editOriginalContent = state.currentPrompt.prompt_content || '';
+            updateSaveButtonState();
             showEditModal();
 
             // Focus with better UX
@@ -303,12 +308,27 @@ async function editPrompt(promptKey) {
     }
 }
 
+function updateSaveButtonState() {
+    if (!dom.saveButton || !dom.editContent) return;
+
+    const currentContent = dom.editContent.value.trim();
+    const originalContent = (state.editOriginalContent || '').trim();
+    const hasChanges = currentContent !== originalContent;
+
+    dom.saveButton.disabled = !hasChanges;
+}
+
 async function savePrompt() {
     const promptKey = dom.editKey.value.trim();
     const promptContent = dom.editContent.value.trim();
 
     if (!promptKey || !promptContent) {
         showNotification('Please fill in all required fields.', 'error');
+        return;
+    }
+
+    if (promptContent === (state.editOriginalContent || '').trim()) {
+        showNotification('No changes detected. Update the prompt before saving.', 'info');
         return;
     }
 
@@ -667,6 +687,10 @@ function hideEditModal() {
     if (dom.editModal) {
         dom.editModal.style.display = 'none';
         document.body.style.overflow = 'auto';
+    }
+    state.editOriginalContent = '';
+    if (dom.saveButton) {
+        dom.saveButton.disabled = true;
     }
 }
 

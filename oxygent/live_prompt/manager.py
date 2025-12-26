@@ -414,7 +414,7 @@ class PromptManager:
                 "query": {
                     "bool": {
                         "must": [
-                            {"term": {"prompt_key.keyword": prompt_key}},  # Use keyword field
+                            {"term": {"prompt_key": prompt_key}},
                             {"term": {"is_history": True}}
                         ]
                     }
@@ -432,8 +432,8 @@ class PromptManager:
             for hit in response["hits"]["hits"]:
                 histories.append(hit["_source"])
 
-            # If keyword query still fails, try without keyword
-            if len(histories) == 0:
+            # If term query yields nothing and we're on ES, try match fallback
+            if len(histories) == 0 and not self.use_local_es:
                 query_fallback = {
                     "query": {
                         "bool": {
