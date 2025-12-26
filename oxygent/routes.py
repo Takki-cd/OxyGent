@@ -549,6 +549,18 @@ async def update_prompt(prompt_key: str, request: PromptUpdateRequest):
         if not existing:
             raise HTTPException(status_code=404, detail="Prompt not found")
 
+        has_changes = (
+            request.prompt_content is not None
+            and request.prompt_content != existing.get("prompt_content", "")
+        )
+
+        if not has_changes:
+            return PromptApiResponse(
+                success=False,
+                message="No changes detected; update the prompt before saving.",
+                data={"prompt_key": prompt_key}
+            )
+
         # Update fields
         update_data = {}
         if request.prompt_content is not None:
