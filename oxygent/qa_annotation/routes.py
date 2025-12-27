@@ -3,6 +3,11 @@
 QA标注平台 - API路由
 
 提供标注平台的REST API接口
+
+MVP版本核心接口：
+1. QA提取：从ES提取数据并建立层级关系
+2. 任务管理：树形结构查询、任务分配
+3. 标注操作：提交标注、审核
 """
 
 import logging
@@ -25,22 +30,10 @@ qa_router = APIRouter(prefix="/api/qa", tags=["QA Annotation"])
 # 请求/响应模型
 # =============================================================================
 
-class ImportPreviewRequest(BaseModel):
-    """导入预览请求"""
+class ExtractionRequest(BaseModel):
+    """QA提取请求"""
     start_time: str
     end_time: str
-    include_trace: bool = True
-    include_node_agent: bool = True
-    include_node_tool: bool = False
-
-
-class ImportExecuteRequest(BaseModel):
-    """执行导入请求"""
-    start_time: str
-    end_time: str
-    include_trace: bool = True
-    include_node_agent: bool = True
-    include_node_tool: bool = False
     include_sub_nodes: bool = True
     limit: int = 1000
 
@@ -67,7 +60,7 @@ class ReviewRequest(BaseModel):
     """审核请求"""
     annotation_id: str
     reviewer_id: str
-    review_status: str
+    review_status: str  # approved / rejected / needs_revision
     review_comment: str = ""
 
 
@@ -77,8 +70,15 @@ class TaskAssignRequest(BaseModel):
     assigned_to: str
 
 
+class TaskStatusUpdateRequest(BaseModel):
+    """任务状态更新请求"""
+    task_id: str
+    status: str
+    stage: Optional[str] = None
+
+
 # =============================================================================
-# 全局ES客户端引用（由MAS初始化时设置）
+# 全局ES客户端引用
 # =============================================================================
 
 _es_client = None
@@ -95,90 +95,68 @@ def set_qa_clients(es_client, mq_client=None):
 def get_es_client():
     """获取ES客户端"""
     if _es_client is None:
-        raise HTTPException(status_code=500, detail="ES client not initialized")
+        raise HTTPException(status_code=500, detail="ES client not initialized. Call set_qa_clients first.")
     return _es_client
 
 
 # =============================================================================
-# 导入相关API
+# QA提取API（MVP核心）
 # =============================================================================
 
-@qa_router.post("/import/preview")
-async def preview_import(request: ImportPreviewRequest):
+@qa_router.post("/extract/preview")
+async def preview_extraction(request: ExtractionRequest):
     """
-    预览导入数据量
+    预览可提取的QA数据量
     
-    在执行导入前，先预览各数据源的数据量
+    用于在执行提取前预估数据量
     """
-    if not Config.is_qa_annotation_enabled():
-        return WebResponse(code=400, message="QA annotation is not enabled").to_dict()
-    
     try:
-        from .services import ImportService
-        service = ImportService(get_es_client())
+        from .services import QAExtractionService
+        service = QAExtractionService(get_es_client())
         
-        result = await service.preview_import(
+        result = await service.preview(
             start_time=request.start_time,
             end_time=request.end_time,
-            include_trace=request.include_trace,
-            include_node_agent=request.include_node_agent,
-            include_node_tool=request.include_node_tool,
         )
         
         return WebResponse(data=result).to_dict()
     except Exception as e:
-        logger.error(f"Preview import failed: {e}")
+        logger.error(f"Preview extraction failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
-@qa_router.post("/import/execute")
-async def execute_import(request: ImportExecuteRequest):
+@qa_router.post("/extract/execute")
+async def execute_extraction(request: ExtractionRequest):
     """
-    执行导入
+    执行QA提取
     
-    从ES历史数据中导入QA数据到标注平台
+    从ES的trace/node表提取QA数据，建立层级关系，保存到qa_task表
+    
+    核心流程：
+    1. 查询指定时间范围内的trace记录（E2E对话）
+    2. 为每个trace创建E2E任务（P0优先级，parent_task_id为空）
+    3. 查询该trace下的node记录（Agent/Tool调用）
+    4. 为每个node创建子任务（P1-P3优先级，parent_task_id指向E2E任务）
     """
-    if not Config.is_qa_annotation_enabled():
-        return WebResponse(code=400, message="QA annotation is not enabled").to_dict()
-    
     try:
-        from .services import ImportService
-        service = ImportService(get_es_client())
+        from .services import QAExtractionService
+        service = QAExtractionService(get_es_client())
         
-        result = await service.execute_import(
+        result = await service.extract_and_save(
             start_time=request.start_time,
             end_time=request.end_time,
-            include_trace=request.include_trace,
-            include_node_agent=request.include_node_agent,
-            include_node_tool=request.include_node_tool,
             include_sub_nodes=request.include_sub_nodes,
             limit=request.limit,
         )
         
         return WebResponse(data=result).to_dict()
     except Exception as e:
-        logger.error(f"Execute import failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
-@qa_router.get("/import/date-range")
-async def get_import_date_range():
-    """获取可导入的数据日期范围"""
-    if not Config.is_qa_annotation_enabled():
-        return WebResponse(code=400, message="QA annotation is not enabled").to_dict()
-    
-    try:
-        from .services import ImportService
-        service = ImportService(get_es_client())
-        result = await service.get_available_date_range()
-        return WebResponse(data=result).to_dict()
-    except Exception as e:
-        logger.error(f"Get date range failed: {e}")
+        logger.error(f"Execute extraction failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
 # =============================================================================
-# 任务相关API
+# 任务管理API
 # =============================================================================
 
 @qa_router.get("/tasks")
@@ -189,6 +167,8 @@ async def list_tasks(
     priority: Optional[int] = None,
     source_type: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    only_root: bool = Query(False, description="只查询E2E根任务"),
     search: Optional[str] = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
@@ -196,7 +176,8 @@ async def list_tasks(
     """
     查询任务列表
     
-    支持分页、筛选、搜索和排序
+    支持筛选、分页、搜索
+    - only_root=true: 只返回E2E任务（用于树形展示的顶层）
     """
     try:
         from .services import TaskService
@@ -209,6 +190,8 @@ async def list_tasks(
             priority=priority,
             source_type=source_type,
             assigned_to=assigned_to,
+            batch_id=batch_id,
+            only_root=only_root,
             search_keyword=search,
             sort_by=sort_by,
             sort_order=sort_order,
@@ -217,6 +200,53 @@ async def list_tasks(
         return WebResponse(data=result).to_dict()
     except Exception as e:
         logger.error(f"List tasks failed: {e}")
+        return WebResponse(code=500, message=str(e)).to_dict()
+
+
+@qa_router.get("/tasks/tree")
+async def list_tasks_tree(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    status: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """
+    查询任务树形列表
+    
+    返回E2E根任务及其子任务的树形结构，用于前端层级展示
+    
+    返回格式：
+    {
+        "tasks": [
+            {
+                "task_id": "xxx",
+                "question": "用户问题",
+                "source_type": "e2e",
+                "priority": 0,
+                "children_count": 3,
+                "children": [
+                    {"task_id": "yyy", "source_type": "agent_agent", ...}
+                ]
+            }
+        ]
+    }
+    """
+    try:
+        from .services import TaskService
+        service = TaskService(get_es_client())
+        
+        result = await service.list_root_tasks_with_tree(
+            page=page,
+            page_size=page_size,
+            status=status,
+            batch_id=batch_id,
+            search_keyword=search,
+        )
+        
+        return WebResponse(data=result).to_dict()
+    except Exception as e:
+        logger.error(f"List tasks tree failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
@@ -237,20 +267,24 @@ async def get_task(task_id: str):
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
-@qa_router.get("/tasks/{task_id}/with-children")
-async def get_task_with_children(task_id: str):
-    """获取任务及其子任务（展示归属关系）"""
+@qa_router.get("/tasks/{task_id}/tree")
+async def get_task_tree(task_id: str):
+    """
+    获取任务的完整树形结构
+    
+    无论传入的是E2E任务还是子任务，都返回完整的树形结构
+    """
     try:
         from .services import TaskService
         service = TaskService(get_es_client())
         
-        result = await service.get_task_with_children(task_id)
-        if not result.get("task"):
+        result = await service.get_task_tree(task_id)
+        if not result.get("root"):
             return WebResponse(code=404, message="Task not found").to_dict()
         
         return WebResponse(data=result).to_dict()
     except Exception as e:
-        logger.error(f"Get task with children failed: {e}")
+        logger.error(f"Get task tree failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
@@ -263,11 +297,32 @@ async def assign_task(request: TaskAssignRequest):
         
         success = await service.assign_task(request.task_id, request.assigned_to)
         if success:
-            return WebResponse(data={"success": True}).to_dict()
+            return WebResponse(data={"success": True, "message": "Task assigned"}).to_dict()
         else:
             return WebResponse(code=400, message="Failed to assign task").to_dict()
     except Exception as e:
         logger.error(f"Assign task failed: {e}")
+        return WebResponse(code=500, message=str(e)).to_dict()
+
+
+@qa_router.post("/tasks/status")
+async def update_task_status(request: TaskStatusUpdateRequest):
+    """更新任务状态"""
+    try:
+        from .services import TaskService
+        service = TaskService(get_es_client())
+        
+        success = await service.update_task_status(
+            task_id=request.task_id,
+            status=request.status,
+            stage=request.stage
+        )
+        if success:
+            return WebResponse(data={"success": True}).to_dict()
+        else:
+            return WebResponse(code=400, message="Failed to update task status").to_dict()
+    except Exception as e:
+        logger.error(f"Update task status failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
@@ -294,8 +349,8 @@ async def get_pending_tasks(
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
-@qa_router.get("/tasks/stats")
-async def get_task_stats():
+@qa_router.get("/stats")
+async def get_stats():
     """获取任务统计信息"""
     try:
         from .services import TaskService
@@ -304,17 +359,37 @@ async def get_task_stats():
         result = await service.get_stats()
         return WebResponse(data=result).to_dict()
     except Exception as e:
-        logger.error(f"Get task stats failed: {e}")
+        logger.error(f"Get stats failed: {e}")
+        return WebResponse(code=500, message=str(e)).to_dict()
+
+
+@qa_router.get("/batches")
+async def get_batch_list():
+    """获取批次列表"""
+    try:
+        from .services import TaskService
+        service = TaskService(get_es_client())
+        
+        result = await service.get_batch_list()
+        return WebResponse(data={"batches": result}).to_dict()
+    except Exception as e:
+        logger.error(f"Get batch list failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
 # =============================================================================
-# 标注相关API
+# 标注API
 # =============================================================================
 
 @qa_router.post("/annotations/submit")
 async def submit_annotation(request: AnnotationSubmitRequest):
-    """提交标注结果"""
+    """
+    提交标注结果
+    
+    标注者完成标注后调用此接口，会：
+    1. 创建annotation记录
+    2. 更新task状态为annotated
+    """
     try:
         from .services import AnnotationService
         service = AnnotationService(get_es_client(), _mq_client)
@@ -381,7 +456,14 @@ async def get_annotation_by_task(task_id: str):
 
 @qa_router.post("/annotations/review")
 async def review_annotation(request: ReviewRequest):
-    """审核标注"""
+    """
+    审核标注
+    
+    审核者审核标注结果：
+    - approved: 通过
+    - rejected: 拒绝（任务回到待标注）
+    - needs_revision: 需要修改
+    """
     try:
         from .services import AnnotationService
         service = AnnotationService(get_es_client(), _mq_client)
@@ -403,45 +485,7 @@ async def review_annotation(request: ReviewRequest):
 
 
 # =============================================================================
-# MQ状态相关API
-# =============================================================================
-
-@qa_router.get("/mq/stats")
-async def get_mq_stats():
-    """获取消息队列统计信息"""
-    try:
-        from .mq_factory import MQFactory
-        
-        mq = MQFactory().get_instance_sync()
-        if not mq:
-            return WebResponse(code=400, message="MQ not initialized").to_dict()
-        
-        stats = await mq.get_all_stats()
-        return WebResponse(data=stats).to_dict()
-    except Exception as e:
-        logger.error(f"Get MQ stats failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
-@qa_router.get("/mq/health")
-async def check_mq_health():
-    """检查MQ健康状态"""
-    try:
-        from .mq_factory import MQFactory
-        
-        mq = MQFactory().get_instance_sync()
-        if not mq:
-            return WebResponse(data={"healthy": False, "message": "MQ not initialized"}).to_dict()
-        
-        healthy = await mq.health_check()
-        return WebResponse(data={"healthy": healthy}).to_dict()
-    except Exception as e:
-        logger.error(f"MQ health check failed: {e}")
-        return WebResponse(data={"healthy": False, "message": str(e)}).to_dict()
-
-
-# =============================================================================
-# 配置检查API
+# 系统配置API
 # =============================================================================
 
 @qa_router.get("/config")
@@ -462,3 +506,65 @@ async def get_qa_config():
         logger.error(f"Get QA config failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
+
+@qa_router.get("/health")
+async def health_check():
+    """健康检查"""
+    try:
+        es_ok = _es_client is not None
+        return WebResponse(data={
+            "status": "ok" if es_ok else "degraded",
+            "es_client": "connected" if es_ok else "not initialized",
+        }).to_dict()
+    except Exception as e:
+        return WebResponse(code=500, message=str(e)).to_dict()
+
+
+# =============================================================================
+# ES索引管理API
+# =============================================================================
+
+@qa_router.post("/admin/init-indices")
+async def init_indices():
+    """
+    初始化ES索引
+    
+    创建qa_task和qa_annotation索引（如果不存在）
+    """
+    try:
+        from .schemas.task import QA_TASK_MAPPING
+        from .schemas.annotation import QA_ANNOTATION_MAPPING
+        
+        es = get_es_client()
+        app_name = Config.get_app_name()
+        
+        results = {}
+        
+        # 创建qa_task索引
+        task_index = f"{app_name}_qa_task"
+        try:
+            exists = await es.index_exists(task_index)
+            if not exists:
+                await es.create_index(task_index, QA_TASK_MAPPING)
+                results[task_index] = "created"
+            else:
+                results[task_index] = "already exists"
+        except Exception as e:
+            results[task_index] = f"error: {e}"
+        
+        # 创建qa_annotation索引
+        annotation_index = f"{app_name}_qa_annotation"
+        try:
+            exists = await es.index_exists(annotation_index)
+            if not exists:
+                await es.create_index(annotation_index, QA_ANNOTATION_MAPPING)
+                results[annotation_index] = "created"
+            else:
+                results[annotation_index] = "already exists"
+        except Exception as e:
+            results[annotation_index] = f"error: {e}"
+        
+        return WebResponse(data=results).to_dict()
+    except Exception as e:
+        logger.error(f"Init indices failed: {e}")
+        return WebResponse(code=500, message=str(e)).to_dict()

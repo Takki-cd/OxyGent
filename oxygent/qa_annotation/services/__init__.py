@@ -3,19 +3,17 @@
 QA标注平台 - 业务服务层
 
 提供标注平台的核心业务逻辑:
-- TaskService: 任务管理服务
-- AnnotationService: 标注服务
-- ImportService: 数据导入服务
-- StatsService: 统计服务 [TODO]
+- QAExtractionService: QA提取服务（从ES提取数据）
+- TaskService: 任务管理服务（CRUD、树形查询）
+- AnnotationService: 标注服务（标注、审核）
 """
 
+from .qa_extraction_service import QAExtractionService
 from .task_service import TaskService
 from .annotation_service import AnnotationService
-from .import_service import ImportService
 
 __all__ = [
+    "QAExtractionService",
     "TaskService",
     "AnnotationService",
-    "ImportService",
 ]
-

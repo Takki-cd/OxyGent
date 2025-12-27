@@ -8,9 +8,7 @@
         "type": "redis",
         "redis": {
           "stream_prefix": "qa",
-          "consumer_group": "qa_processor",
-          "max_len": 100000,
-          "block_timeout_ms": 5000
+          "consumer_group": "qa_processor"
         }
       },
       
@@ -18,49 +16,35 @@
         "exclude_callees": ["retrieve_tools", "default_llm"],
         "exclude_callee_types": ["llm"],
         "min_question_length": 2,
-        "min_answer_length": 10,
-        "max_answer_length": 50000,
-        "dedup_enabled": true,
-        "dedup_cache_ttl_seconds": 86400
+        "min_answer_length": 10
       },
       
       "llm_processor": {
         "enabled": false,
-        "skip_if_disabled": true,
         "model": "default_llm",
-        "batch_size": 10,
-        "max_retries": 3,
-        "retry_delay_seconds": 5,
         "quality_threshold": 0.3
       },
       
       "task": {
         "expire_hours": 24,
-        "max_retry_count": 3,
+        "dedup_enabled": true,
         "priority_weights": {
           "e2e": 0,
           "user_agent": 1,
           "agent_agent": 2,
           "agent_tool": 3
-        },
-        "auto_assign": false,
-        "assignment_strategy": "round_robin",
-        "dedup_enabled": true,
-        "quality_threshold": 0.3
+        }
       },
       
       "review": {
         "enabled": true,
-        "auto_approve_threshold": 0.9,
         "require_review_for_kb": true
       },
       
       "platform": {
         "page_size": 20,
-        "enable_kb_export": true,
-        "export_formats": ["json", "jsonl", "csv"]
+        "enable_kb_export": false
       }
     }
   }
 }
-

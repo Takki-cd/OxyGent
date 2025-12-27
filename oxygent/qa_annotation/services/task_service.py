@@ -2,7 +2,7 @@
 """
 QA标注平台 - 任务管理服务
 
-提供任务的CRUD和查询功能
+提供任务的CRUD和查询功能，特别支持层级树形结构查询
 """
 
 import logging
@@ -22,6 +22,7 @@ class TaskService:
     提供:
     - 任务列表查询（支持分页、筛选、排序）
     - 任务详情获取
+    - **树形层级结构查询**（核心功能）
     - 任务状态更新
     - 任务分配
     - 任务统计
@@ -48,7 +49,9 @@ class TaskService:
         source_type: Optional[str] = None,
         assigned_to: Optional[str] = None,
         parent_task_id: Optional[str] = None,
+        only_root: bool = False,
         search_keyword: Optional[str] = None,
+        batch_id: Optional[str] = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> Dict[str, Any]:
@@ -62,10 +65,12 @@ class TaskService:
             priority: 优先级筛选
             source_type: 数据源类型筛选
             assigned_to: 分配给谁
-            parent_task_id: 父任务ID（用于查看归属关系）
-            search_keyword: 搜索关键词（搜索question和answer）
+            parent_task_id: 父任务ID（用于查看子任务）
+            only_root: 只查询根任务（E2E任务，parent_task_id为空）
+            search_keyword: 搜索关键词
+            batch_id: 批次ID筛选
             sort_by: 排序字段
-            sort_order: 排序顺序（asc/desc）
+            sort_order: 排序顺序
             
         Returns:
             {
@@ -75,8 +80,8 @@ class TaskService:
                 "tasks": List[dict]
             }
         """
-        # 构建查询
         must_conditions = []
+        must_not_conditions = []
         
         if status:
             must_conditions.append({"term": {"status": status}})
@@ -93,6 +98,13 @@ class TaskService:
         if parent_task_id:
             must_conditions.append({"term": {"parent_task_id": parent_task_id}})
         
+        if batch_id:
+            must_conditions.append({"term": {"batch_id": batch_id}})
+        
+        # 只查询根任务（E2E）
+        if only_root:
+            must_conditions.append({"term": {"parent_task_id": ""}})
+        
         # 关键词搜索
         if search_keyword:
             must_conditions.append({
@@ -100,14 +112,16 @@ class TaskService:
                     "should": [
                         {"match": {"question": search_keyword}},
                         {"match": {"answer": search_keyword}},
-                    ]
+                    ],
+                    "minimum_should_match": 1
                 }
             })
         
         query = {
             "query": {
                 "bool": {
-                    "must": must_conditions if must_conditions else [{"match_all": {}}]
+                    "must": must_conditions if must_conditions else [{"match_all": {}}],
+                    "must_not": must_not_conditions if must_not_conditions else []
                 }
             },
             "from": (page - 1) * page_size,
@@ -137,16 +151,84 @@ class TaskService:
                 "error": str(e),
             }
     
-    async def get_task(self, task_id: str) -> Optional[dict]:
+    async def list_root_tasks_with_tree(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        batch_id: Optional[str] = None,
+        search_keyword: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
-        获取任务详情
+        查询根任务列表，并附带子任务树
         
-        Args:
-            task_id: 任务ID
-            
-        Returns:
-            任务数据或None
+        这是前端展示层级结构的核心接口
+        
+        返回格式：
+        {
+            "total": 10,
+            "tasks": [
+                {
+                    "task_id": "xxx",
+                    "question": "用户问题",
+                    "answer": "最终回答",
+                    "source_type": "e2e",
+                    "priority": 0,
+                    "status": "pending",
+                    "children_count": 3,
+                    "children": [
+                        {
+                            "task_id": "yyy",
+                            "source_type": "agent_agent",
+                            "priority": 2,
+                            ...
+                        }
+                    ]
+                }
+            ]
+        }
         """
+        # 1. 查询根任务
+        root_result = await self.list_tasks(
+            page=page,
+            page_size=page_size,
+            status=status,
+            batch_id=batch_id,
+            search_keyword=search_keyword,
+            only_root=True,
+            sort_by="created_at",
+            sort_order="desc"
+        )
+        
+        root_tasks = root_result.get("tasks", [])
+        
+        # 2. 为每个根任务查询子任务
+        for task in root_tasks:
+            task_id = task.get("task_id")
+            children = await self._get_children_tasks(task_id)
+            task["children"] = children
+            task["children_count"] = len(children)
+        
+        return {
+            "total": root_result.get("total", 0),
+            "page": page,
+            "page_size": page_size,
+            "tasks": root_tasks,
+        }
+    
+    async def _get_children_tasks(self, parent_task_id: str) -> List[dict]:
+        """获取指定任务的所有子任务"""
+        result = await self.list_tasks(
+            page=1,
+            page_size=100,
+            parent_task_id=parent_task_id,
+            sort_by="priority",
+            sort_order="asc"
+        )
+        return result.get("tasks", [])
+    
+    async def get_task(self, task_id: str) -> Optional[dict]:
+        """获取任务详情"""
         try:
             result = await self.es_client.search(
                 self.index_name,
@@ -160,34 +242,62 @@ class TaskService:
             logger.error(f"Failed to get task {task_id}: {e}")
             return None
     
-    async def get_task_with_children(self, task_id: str) -> Dict[str, Any]:
+    async def get_task_tree(self, task_id: str) -> Dict[str, Any]:
         """
-        获取任务及其子任务（归属关系展示）
+        获取任务的完整树形结构
+        
+        如果task_id是根任务，返回它和所有子任务
+        如果task_id是子任务，先找到根任务，再返回完整树
         
         Args:
-            task_id: 父任务ID
+            task_id: 任务ID
             
         Returns:
             {
-                "task": dict,
-                "children": List[dict]
+                "root": {...},  # 根任务
+                "children": [...],  # 子任务列表
+                "current_task_id": "xxx"  # 当前查询的任务ID
             }
         """
         task = await self.get_task(task_id)
         if not task:
-            return {"task": None, "children": []}
+            return {"root": None, "children": [], "current_task_id": task_id}
         
-        # 查询子任务（通过parent_task_id关联）
-        children_result = await self.list_tasks(
-            parent_task_id=task_id,
-            page_size=100,
-            sort_by="priority",
-            sort_order="asc"
-        )
+        # 判断是否是根任务
+        parent_task_id = task.get("parent_task_id", "")
         
+        if parent_task_id:
+            # 是子任务，找到根任务
+            root_task = await self.get_task(parent_task_id)
+            if root_task:
+                children = await self._get_children_tasks(parent_task_id)
+                return {
+                    "root": root_task,
+                    "children": children,
+                    "current_task_id": task_id
+                }
+            else:
+                # 找不到根任务，返回当前任务
+                return {
+                    "root": task,
+                    "children": [],
+                    "current_task_id": task_id
+                }
+        else:
+            # 是根任务
+            children = await self._get_children_tasks(task_id)
+            return {
+                "root": task,
+                "children": children,
+                "current_task_id": task_id
+            }
+    
+    async def get_task_with_children(self, task_id: str) -> Dict[str, Any]:
+        """获取任务及其子任务（兼容旧接口）"""
+        tree = await self.get_task_tree(task_id)
         return {
-            "task": task,
-            "children": children_result.get("tasks", []),
+            "task": tree.get("root"),
+            "children": tree.get("children", []),
         }
     
     async def update_task_status(
@@ -195,18 +305,9 @@ class TaskService:
         task_id: str,
         status: str,
         assigned_to: Optional[str] = None,
+        stage: Optional[str] = None,
     ) -> bool:
-        """
-        更新任务状态
-        
-        Args:
-            task_id: 任务ID
-            status: 新状态
-            assigned_to: 分配给谁（可选）
-            
-        Returns:
-            是否更新成功
-        """
+        """更新任务状态"""
         update_data = {
             "status": status,
             "updated_at": get_format_time(),
@@ -216,6 +317,9 @@ class TaskService:
             update_data["assigned_to"] = assigned_to
             if status == QATaskStatus.ASSIGNED.value:
                 update_data["assigned_at"] = get_format_time()
+        
+        if stage is not None:
+            update_data["stage"] = stage
         
         try:
             await self.es_client.update(
@@ -229,21 +333,8 @@ class TaskService:
             logger.error(f"Failed to update task {task_id}: {e}")
             return False
     
-    async def assign_task(
-        self,
-        task_id: str,
-        assigned_to: str,
-    ) -> bool:
-        """
-        分配任务给标注者
-        
-        Args:
-            task_id: 任务ID
-            assigned_to: 标注者ID
-            
-        Returns:
-            是否分配成功
-        """
+    async def assign_task(self, task_id: str, assigned_to: str) -> bool:
+        """分配任务给标注者"""
         return await self.update_task_status(
             task_id=task_id,
             status=QATaskStatus.ASSIGNED.value,
@@ -256,19 +347,8 @@ class TaskService:
         page: int = 1,
         page_size: int = 10,
     ) -> Dict[str, Any]:
-        """
-        获取标注者的待标注任务
-        
-        Args:
-            annotator_id: 标注者ID（None表示获取未分配的任务）
-            page: 页码
-            page_size: 每页大小
-            
-        Returns:
-            任务列表
-        """
+        """获取标注者的待标注任务"""
         if annotator_id:
-            # 获取分配给该标注者的任务
             return await self.list_tasks(
                 page=page,
                 page_size=page_size,
@@ -278,7 +358,6 @@ class TaskService:
                 sort_order="asc"
             )
         else:
-            # 获取未分配的任务
             return await self.list_tasks(
                 page=page,
                 page_size=page_size,
@@ -288,30 +367,16 @@ class TaskService:
             )
     
     async def get_stats(self) -> Dict[str, Any]:
-        """
-        获取任务统计信息
-        
-        Returns:
-            {
-                "total": int,
-                "by_status": {status: count},
-                "by_priority": {priority: count},
-                "by_source_type": {source_type: count}
-            }
-        """
+        """获取任务统计信息"""
         try:
-            # 使用聚合查询
             query = {
                 "size": 0,
                 "aggs": {
-                    "by_status": {
-                        "terms": {"field": "status"}
-                    },
-                    "by_priority": {
-                        "terms": {"field": "priority"}
-                    },
-                    "by_source_type": {
-                        "terms": {"field": "source_type"}
+                    "by_status": {"terms": {"field": "status"}},
+                    "by_priority": {"terms": {"field": "priority"}},
+                    "by_source_type": {"terms": {"field": "source_type"}},
+                    "root_count": {
+                        "filter": {"term": {"parent_task_id": ""}}
                     }
                 }
             }
@@ -323,6 +388,7 @@ class TaskService:
             
             return {
                 "total": total,
+                "root_count": aggs.get("root_count", {}).get("doc_count", 0),
                 "by_status": {
                     bucket["key"]: bucket["doc_count"]
                     for bucket in aggs.get("by_status", {}).get("buckets", [])
@@ -340,9 +406,54 @@ class TaskService:
             logger.error(f"Failed to get stats: {e}")
             return {
                 "total": 0,
+                "root_count": 0,
                 "by_status": {},
                 "by_priority": {},
                 "by_source_type": {},
                 "error": str(e),
             }
-
+    
+    async def get_batch_list(self) -> List[Dict[str, Any]]:
+        """获取所有批次列表"""
+        try:
+            query = {
+                "size": 0,
+                "aggs": {
+                    "batches": {
+                        "terms": {
+                            "field": "batch_id",
+                            "size": 100
+                        },
+                        "aggs": {
+                            "latest": {
+                                "top_hits": {
+                                    "size": 1,
+                                    "sort": [{"created_at": {"order": "desc"}}],
+                                    "_source": ["batch_id", "created_at"]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            result = await self.es_client.search(self.index_name, query)
+            buckets = result.get("aggregations", {}).get("batches", {}).get("buckets", [])
+            
+            batches = []
+            for bucket in buckets:
+                batch_id = bucket["key"]
+                if not batch_id:
+                    continue
+                hits = bucket.get("latest", {}).get("hits", {}).get("hits", [])
+                created_at = hits[0]["_source"]["created_at"] if hits else ""
+                batches.append({
+                    "batch_id": batch_id,
+                    "count": bucket["doc_count"],
+                    "created_at": created_at
+                })
+            
+            return sorted(batches, key=lambda x: x.get("created_at", ""), reverse=True)
+        except Exception as e:
+            logger.error(f"Failed to get batch list: {e}")
+            return []

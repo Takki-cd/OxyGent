@@ -2,75 +2,54 @@
 """
 OxyGent QA标注平台模块
 
-本模块提供基于消息队列的QA数据标注Pipeline，从OxyGent框架的对话记录中提取高质量训练语料。
+从OxyGent框架的对话记录中提取高质量QA数据用于训练语料标注。
 
-核心组件:
----------
-- schemas: 数据模型定义（消息、任务、标注结果）
-- mq: 消息队列抽象（支持Redis Streams/RabbitMQ/Kafka）
-- collectors: 数据采集器（实时Hook、历史导入）
-- processors: Pipeline处理器（任务分配、LLM处理、审核）
-- services: 业务服务层（任务管理、标注、导入）
-- routes: API路由
+MVP版本核心功能:
+-----------------
+1. QA提取：从ES的trace/node表批量提取QA对
+2. 层级关系：端到端(E2E)任务与子任务的父子关系
+3. 任务管理：树形结构展示、分配、状态流转
+4. 标注审核：标注提交、审核通过/拒绝
+
+可配置选项:
+----------
+- LLM预处理：默认跳过，可通过 llm_processor.enabled 开启
+- 知识库发布：默认跳过，可通过 platform.enable_kb_export 开启
+- 实时Hook：默认关闭，可通过 realtime_hook_enabled 开启
 
 使用方法:
 --------
-1. 在config.json中启用qa_annotation:
+1. 配置 config.json:
    {
-     "default": {
-       "qa_annotation": {
-         "enabled": true,
-         "realtime_hook_enabled": false,
-         "mq": {
-           "type": "redis",
-           "redis": {
-             "stream_prefix": "qa",
-             "consumer_group": "qa_processor"
-           }
-         },
-         "collector": {
-           "exclude_callees": ["retrieve_tools", "default_llm"],
-           "exclude_callee_types": ["llm"],
-           "min_question_length": 2,
-           "min_answer_length": 10
-         }
-       }
+     "qa_annotation": {
+       "enabled": true,
+       "llm_processor": {"enabled": false},
+       "platform": {"enable_kb_export": false}
      }
    }
 
 2. 注册API路由:
-   from oxygent.qa_annotation import qa_router
+   from oxygent.qa_annotation import qa_router, set_qa_clients
+   set_qa_clients(es_client)
    app.include_router(qa_router)
 
-3. 设置客户端:
-   from oxygent.qa_annotation import set_qa_clients
-   set_qa_clients(es_client, mq_client)
-
-Pipeline流程:
------------
-1. 数据采集 -> qa:raw队列
-2. LLM处理(可选) -> qa:processed队列  
-3. 任务分配 -> qa:pending队列 + ES持久化
-4. 人工标注 -> qa:review队列
-5. 审核通过 -> qa:knowledge队列(可选)
+3. 初始化ES索引:
+   from oxygent.qa_annotation.init_es import init_qa_indices
+   await init_qa_indices(es_client)
 """
 
-# 路由
+# API路由
 from .routes import qa_router, set_qa_clients
 
-# MQ
-from .mq import BaseMQ, MQMessage, MQTopic, RedisStreamMQ
-from .mq_factory import MQFactory, get_mq_client
+# 业务服务
+from .services import (
+    QAExtractionService,
+    TaskService,
+    AnnotationService,
+)
 
-# Schemas
+# 数据模型
 from .schemas import (
-    RawQAMessage,
-    ProcessedQAMessage,
-    TaskMessage,
-    ReviewMessage,
-    KnowledgeMessage,
-    QASourceType,
-    QAPriority,
     QATask,
     QATaskStatus,
     QATaskStage,
@@ -79,36 +58,18 @@ from .schemas import (
     ReviewStatus,
 )
 
-# Collectors
-from .collectors import QACollectorHook, QAHistoryImporter
-
-# Processors
-from .processors import BaseProcessor, TaskDispatcher
-
-# Services
-from .services import TaskService, AnnotationService, ImportService
+# 采集器（实时Hook，默认关闭）
+from .collectors import QACollectorHook, publish_qa_to_mq
 
 __all__ = [
-    # Routes
+    # API
     "qa_router",
     "set_qa_clients",
     
-    # MQ
-    "BaseMQ",
-    "MQMessage",
-    "MQTopic",
-    "RedisStreamMQ",
-    "MQFactory",
-    "get_mq_client",
-    
-    # Schemas - Messages
-    "RawQAMessage",
-    "ProcessedQAMessage",
-    "TaskMessage",
-    "ReviewMessage",
-    "KnowledgeMessage",
-    "QASourceType",
-    "QAPriority",
+    # Services
+    "QAExtractionService",
+    "TaskService",
+    "AnnotationService",
     
     # Schemas - Task
     "QATask",
@@ -122,18 +83,7 @@ __all__ = [
     
     # Collectors
     "QACollectorHook",
-    "QAHistoryImporter",
-    
-    # Processors
-    "BaseProcessor",
-    "TaskDispatcher",
-    
-    # Services
-    "TaskService",
-    "AnnotationService",
-    "ImportService",
+    "publish_qa_to_mq",
 ]
 
-
 __version__ = "0.1.0"
-

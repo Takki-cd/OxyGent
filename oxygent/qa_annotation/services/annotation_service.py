@@ -264,7 +264,9 @@ class AnnotationService:
                 }
             )
             
-            # TODO: 如果通过且需要加入知识库，发送到knowledge队列
+            # 知识库发布（可配置跳过）
+            if review_status == ReviewStatus.APPROVED.value and annotation.get("should_add_to_kb"):
+                await self._publish_to_knowledge_base(annotation, task_id)
             
             logger.info(f"Annotation {annotation_id} reviewed: {review_status}")
             return {
@@ -333,4 +335,48 @@ class AnnotationService:
             return None
         except Exception:
             return None
+    
+    async def _publish_to_knowledge_base(self, annotation: dict, task_id: str):
+        """
+        发布到知识库（可配置跳过）
+        
+        通过配置 qa_annotation.platform.enable_kb_export 控制是否启用
+        """
+        platform_config = Config.get_qa_platform_config()
+        if not platform_config.get("enable_kb_export", False):
+            logger.debug(f"KB export disabled, skipping for annotation of task {task_id}")
+            return
+        
+        # 获取任务详情
+        task = await self._get_task(task_id)
+        if not task:
+            return
+        
+        kb_data = {
+            "task_id": task_id,
+            "annotation_id": annotation.get("annotation_id"),
+            "question": annotation.get("annotated_question"),
+            "answer": annotation.get("annotated_answer"),
+            "domain": annotation.get("domain", ""),
+            "intent": annotation.get("intent", ""),
+            "kb_category": annotation.get("kb_category", ""),
+            "source_trace_id": task.get("source_trace_id", ""),
+            "published_at": get_format_time(),
+        }
+        
+        # MVP版本：记录日志，后续扩展可发布到MQ或直接写入知识库
+        logger.info(f"KB publish: {kb_data}")
+        
+        # 更新任务阶段为已发布
+        try:
+            await self.es_client.update(
+                self.task_index,
+                doc_id=task_id,
+                body={
+                    "stage": QATaskStage.PUBLISHED.value,
+                    "updated_at": get_format_time(),
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update task stage to published: {e}")
 
