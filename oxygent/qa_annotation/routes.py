@@ -12,7 +12,7 @@ MVP版本核心接口：
 
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -27,13 +27,41 @@ qa_router = APIRouter(prefix="/api/qa", tags=["QA Annotation"])
 
 
 # =============================================================================
+# 时区配置（从config读取）
+# =============================================================================
+
+def get_default_time_range():
+    """获取默认时间范围（从config读取，默认往前N小时）"""
+    try:
+        import pytz
+        tz_name = Config.get_qa_timezone()
+        tz = pytz.timezone(tz_name)
+        now = datetime.now(tz)
+        hours_before = Config.get_qa_default_hours_before()
+        end_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        start_time = (now - timedelta(hours=hours_before)).strftime("%Y-%m-%d %H:%M:%S")
+        return start_time, end_time
+    except ImportError:
+        # 如果没有 pytz，使用 UTC 时间
+        now = datetime.now()
+        hours_before = Config.get_qa_default_hours_before()
+        end_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        start_time = (now - timedelta(hours=hours_before)).strftime("%Y-%m-%d %H:%M:%S")
+        return start_time, end_time
+
+
+# 预先计算默认时间（应用启动时）
+_DEFAULT_START_TIME, _DEFAULT_END_TIME = get_default_time_range()
+
+
+# =============================================================================
 # 请求/响应模型
 # =============================================================================
 
 class ExtractionRequest(BaseModel):
-    """QA提取请求"""
-    start_time: str
-    end_time: str
+    """QA提取请求（带默认时间范围）"""
+    start_time: str = _DEFAULT_START_TIME
+    end_time: str = _DEFAULT_END_TIME
     include_sub_nodes: bool = True
     limit: int = 1000
 

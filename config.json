@@ -73,6 +73,8 @@
         "qa_annotation": {
             "enabled": true,
             "realtime_hook_enabled": false,
+            "timezone": "Asia/Shanghai",
+            "default_hours_before": 3,
             "mq": {
                 "type": "redis_stream"
             },

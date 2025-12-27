@@ -183,7 +183,55 @@ class LocalEs(BaseEs):
         result_size = body.get("size", 10)
         result_docs = docs[:result_size]
         
-        return {"hits": {"hits": result_docs, "total": {"value": len(filtered_docs)}}}
+        # 处理 aggregations（如果需要统计）
+        aggs = body.get("aggs", {})
+        result = {"hits": {"hits": result_docs, "total": {"value": len(filtered_docs)}}}
+        
+        if aggs:
+            # 支持 aggregations 统计
+            agg_results = {}
+            for agg_name, agg_config in aggs.items():
+                if "terms" in agg_config:
+                    # terms aggregation
+                    field = agg_config["terms"]["field"]
+                    buckets = {}
+                    for doc in filtered_docs:
+                        source = doc.get("_source", {})
+                        # 提取嵌套字段值
+                        value = source
+                        for part in field.split("."):
+                            if isinstance(value, dict):
+                                value = value.get(part, "")
+                            else:
+                                value = ""
+                                break
+                        if value is None:
+                            value = ""
+                        value_str = str(value)
+                        buckets[value_str] = buckets.get(value_str, 0) + 1
+                    
+                    agg_results[agg_name] = {
+                        "buckets": [
+                            {"key": k, "doc_count": v} 
+                            for k, v in buckets.items()
+                        ]
+                    }
+                elif "filter" in agg_config:
+                    # filter aggregation
+                    filter_query = agg_config["filter"]
+                    filtered_count = len(self._filter_docs(filtered_docs, filter_query))
+                    agg_results[agg_name] = {"doc_count": filtered_count}
+                elif "top_hits" in agg_config:
+                    # top_hits aggregation (简化版)
+                    top_docs = docs[:agg_config["top_hits"].get("size", 1)]
+                    agg_results[agg_name] = {
+                        "hits": {"hits": top_docs}
+                    }
+            
+            if agg_results:
+                result["aggregations"] = agg_results
+        
+        return result
 
     # ------------------------------------------------------------------
     # Helpers for naive query execution

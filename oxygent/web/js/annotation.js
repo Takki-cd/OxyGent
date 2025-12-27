@@ -23,6 +23,9 @@ const state = {
     currentTask: null,
     currentTaskTree: null,
     
+    // 当前查看的子任务（只读）
+    currentChildTask: null,
+    
     // 过滤条件
     filters: {
         status: '',
@@ -478,7 +481,7 @@ function renderTaskDetail() {
             <div class="children-tree">
                 <div class="tree-title">🌳 关联子任务 (${tree.children.length})</div>
                 ${tree.children.map(child => `
-                    <div class="tree-item" onclick="selectTask('${child.task_id}')">
+                    <div class="tree-item" onclick="viewChildTask('${child.task_id}')" title="点击查看详情">
                         <div class="tree-item-left">
                             <span class="tree-item-type ${child.source_type}">${getSourceTypeLabel(child.source_type)}</span>
                             <span class="tree-item-question">${truncate(child.question, 50)}</span>
@@ -488,6 +491,34 @@ function renderTaskDetail() {
                 `).join('')}
             </div>
         ` : ''}
+        
+        <!-- 子任务详情查看区域 -->
+        ${state.currentChildTask ? `
+            <div class="child-task-detail">
+                <div class="qa-section">
+                    <div class="qa-label">
+                        <span>📋 子任务详情</span>
+                        <button class="btn btn-small" onclick="closeChildTaskDetail()">关闭</button>
+                    </div>
+                    <div style="display:flex; gap:16px; font-size:12px; color:#666; margin-top:8px;">
+                        <span>ID: ${state.currentChildTask.task_id.substring(0, 8)}...</span>
+                        <span>来源: ${getSourceTypeLabel(state.currentChildTask.source_type)}</span>
+                        <span>优先级: ${getPriorityLabel(state.currentChildTask.priority)}</span>
+                        <span>创建: ${formatDate(state.currentChildTask.created_at)}</span>
+                    </div>
+                </div>
+                
+                <div class="qa-section">
+                    <div class="qa-label">❓ 子任务问题</div>
+                    <div class="qa-content">${state.currentChildTask.question || '(无)'}</div>
+                </div>
+                
+                <div class="qa-section">
+                    <div class="qa-label">💬 子任务答案</div>
+                    <div class="qa-content">${state.currentChildTask.answer || '(无)'}</div>
+                </div>
+            </div>
+        ` : ''}
     `;
 }
 
@@ -495,12 +526,33 @@ function renderTaskDetail() {
 // 事件处理
 // ============================================================================
 
-// 选择任务
+// 查看子任务详情（只读模式）
+async function viewChildTask(taskId) {
+    try {
+        // 获取子任务详情
+        const tree = await fetchTaskTree(taskId);
+        if (tree && tree.root) {
+            state.currentChildTask = tree.root;
+            renderTaskDetail();
+        }
+    } catch (error) {
+        showToast('加载子任务详情失败: ' + error.message, 'error');
+    }
+}
+
+// 关闭子任务详情
+function closeChildTaskDetail() {
+    state.currentChildTask = null;
+    renderTaskDetail();
+}
+
+// 选择任务（用于E2E任务和可标注的任务）
 async function selectTask(taskId) {
     try {
         const tree = await fetchTaskTree(taskId);
         state.currentTask = tree.root;
         state.currentTaskTree = tree;
+        state.currentChildTask = null;  // 清除子任务详情
         
         // 尝试加载已有标注
         const annotation = await fetchAnnotationByTask(taskId);
@@ -688,9 +740,10 @@ async function handleSubmitAnnotation() {
         await submitAnnotation(data);
         showToast('标注提交成功', 'success');
         
-        // 刷新当前任务
+        // 刷新当前任务详情和列表
         await selectTask(state.currentTask.task_id);
-        await loadStats();
+        await loadTasks();  // 刷新左侧列表，显示最新状态
+        await loadStats();  // 刷新统计数据
         
     } catch (error) {
         showToast('提交失败: ' + error.message, 'error');
@@ -719,7 +772,8 @@ async function handleReview(status) {
         showToast(status === 'approved' ? '审核通过' : '已拒绝', 'success');
         
         await selectTask(state.currentTask.task_id);
-        await loadStats();
+        await loadTasks();  // 刷新左侧列表，显示最新状态
+        await loadStats();  // 刷新统计数据
         
     } catch (error) {
         showToast('审核失败: ' + error.message, 'error');
@@ -764,14 +818,27 @@ async function handleInitIndices() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('QA Annotation Platform initialized');
     
-    // 设置默认时间范围（最近7天）
+    // 从后端获取配置，计算默认时间范围
     const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const hoursBefore = 3; // 默认3小时，可改为从API获取配置
+    
+    const hoursAgo = new Date(now.getTime() - hoursBefore * 60 * 60 * 1000);
     
     const startInput = document.getElementById('importStartTime');
     const endInput = document.getElementById('importEndTime');
-    if (startInput) startInput.value = weekAgo.toISOString().slice(0, 16);
-    if (endInput) endInput.value = now.toISOString().slice(0, 16);
+    
+    // 格式化时间为 datetime-local 格式 (yyyy-MM-ddTHH:mm)
+    const formatForInput = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    
+    if (startInput) startInput.value = formatForInput(hoursAgo);
+    if (endInput) endInput.value = formatForInput(now);
     
     // 绑定过滤器事件
     document.getElementById('filterStatus')?.addEventListener('change', applyFilters);

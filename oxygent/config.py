@@ -717,3 +717,13 @@ class Config:
     def get_qa_platform_config(cls) -> dict:
         """获取平台配置"""
         return cls.get_qa_annotation_config().get("platform", {})
+
+    @classmethod
+    def get_qa_timezone(cls) -> str:
+        """获取QA标注时区配置（默认上海）"""
+        return cls.get_qa_annotation_config().get("timezone", "Asia/Shanghai")
+
+    @classmethod
+    def get_qa_default_hours_before(cls) -> int:
+        """获取QA标注默认时间范围（小时，默认3小时）"""
+        return cls.get_qa_annotation_config().get("default_hours_before", 3)

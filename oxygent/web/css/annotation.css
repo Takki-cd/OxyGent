@@ -576,7 +576,8 @@
 }
 
 .tree-item:hover {
-    background: #F0F0F5;
+    background: #E8F4FF;
+    border-color: #155EEF;
 }
 
 .tree-item-left {
@@ -603,6 +604,38 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* 子任务详情查看区域 */
+.child-task-detail {
+    margin-top: 24px;
+    border-top: 1px solid #E8E8EB;
+    padding-top: 24px;
+    background: #FFF9E6;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.child-task-detail .qa-section {
+    margin-bottom: 16px;
+}
+
+.child-task-detail .qa-section:last-child {
+    margin-bottom: 0;
+}
+
+.child-task-detail .qa-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.child-task-detail .qa-label .btn {
+    margin-left: auto;
+}
+
+.child-task-detail .qa-content {
+    max-height: 120px;
 }
 
 /* 统计面板 */
