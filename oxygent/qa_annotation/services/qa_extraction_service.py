@@ -60,19 +60,19 @@ class QAExtractionService:
     ) -> Dict[str, Any]:
         """
         提取QA并保存到任务表
-        
+
         核心流程：
         1. 查询时间范围内的trace记录（E2E对话）
         2. 为每个trace创建E2E任务
         3. 查询该trace下的node记录（子调用）
         4. 为每个node创建子任务，parent_task_id指向E2E任务
-        
+
         Args:
             start_time: 开始时间
             end_time: 结束时间
             include_sub_nodes: 是否包含子节点
             limit: 最大提取数量
-            
+
         Returns:
             提取结果统计
         """
@@ -83,39 +83,82 @@ class QAExtractionService:
             "sub_task_count": 0,
             "skipped": 0,
             "errors": [],
+            "skip_reasons": {
+                "validation_failed": 0,
+                "duplicate_es": 0,
+                "duplicate_memory": 0,
+            },
             "started_at": get_format_time(),
         }
-        
+
         # 确保索引存在
         await self._ensure_index_exists()
-        
+
         try:
             # 1. 查询trace记录
             traces = await self._query_traces(start_time, end_time, limit)
             logger.info(f"Found {len(traces)} traces to extract")
-            
+
             for trace in traces:
                 trace_id = trace.get("trace_id", "")
-                
+
                 # 2. 创建E2E任务
                 e2e_task = self._trace_to_task(trace, batch_id)
+
+                # 记录验证失败的具体原因
                 if e2e_task is None:
+                    # 解析数据，查看是因为什么问题验证失败
+                    input_str = trace.get("input", "{}")
+                    question = ""
+                    if isinstance(input_str, str):
+                        try:
+                            input_data = json.loads(input_str)
+                            question = input_data.get("query", "")
+                        except Exception:
+                            pass
+                    else:
+                        question = input_data.get("query", "") if isinstance(input_data, dict) else ""
+
+                    output = trace.get("output", "")
+                    answer = output if isinstance(output, str) else str(output) if output else ""
+
+                    min_q = self.collector_config.get("min_question_length", 2)
+                    min_a = self.collector_config.get("min_answer_length", 1)
+
+                    q_len = len(str(question))
+                    a_len = len(answer)
+
+                    if q_len < min_q:
+                        logger.debug(f"Skip trace {trace_id}: question_too_short (len={q_len}, min={min_q}, question='{str(question)[:50]}')")
+                    if a_len < min_a:
+                        logger.debug(f"Skip trace {trace_id}: answer_too_short (len={a_len}, min={min_a}, answer='{answer[:50] if answer else 'empty'}')")
+
                     stats["skipped"] += 1
+                    stats["skip_reasons"]["validation_failed"] += 1
                     continue
-                
+
                 # 去重检查（内存缓存 + ES）
-                if await self._is_duplicate_full(e2e_task["qa_hash"]):
+                is_dup, dup_source = await self._is_duplicate_full_with_source(e2e_task["qa_hash"])
+
+                if is_dup:
+                    logger.debug(f"Skip trace {trace_id}: duplicate_qa_hash (hash={e2e_task['qa_hash'][:16]}..., source={dup_source})")
                     stats["skipped"] += 1
+                    if dup_source == "memory":
+                        stats["skip_reasons"]["duplicate_memory"] += 1
+                    else:
+                        stats["skip_reasons"]["duplicate_es"] += 1
                     continue
-                
+
                 # 保存E2E任务
                 try:
                     await self._save_task(e2e_task)
                     stats["e2e_count"] += 1
+                    logger.info(f"Saved E2E task: trace_id={trace_id}, question='{str(e2e_task['question'])[:30]}...'")
                 except Exception as e:
                     stats["errors"].append(f"Save E2E task error: {e}")
+                    logger.warning(f"Failed to save E2E task {trace_id}: {e}")
                     continue
-                
+
                 # 3. 提取子节点
                 if include_sub_nodes:
                     sub_count = await self._extract_sub_nodes(
@@ -125,20 +168,21 @@ class QAExtractionService:
                         stats=stats
                     )
                     stats["sub_task_count"] += sub_count
-        
+
         except Exception as e:
             logger.error(f"Extraction error: {e}")
             stats["errors"].append(str(e))
-        
+
         stats["finished_at"] = get_format_time()
         stats["total_extracted"] = stats["e2e_count"] + stats["sub_task_count"]
-        
+
         logger.info(
             f"Extraction completed: batch={batch_id}, "
             f"e2e={stats['e2e_count']}, sub={stats['sub_task_count']}, "
-            f"skipped={stats['skipped']}"
+            f"skipped={stats['skipped']} (validation={stats['skip_reasons']['validation_failed']}, "
+            f"dup_es={stats['skip_reasons']['duplicate_es']}, dup_mem={stats['skip_reasons']['duplicate_memory']})"
         )
-        
+
         return stats
     
     async def _query_traces(
@@ -237,11 +281,10 @@ class QAExtractionService:
             else:
                 answer = str(output) if output else ""
             
-            # 验证长度
+            # 验证长度（只验证question，answer允许为空以保留bad case）
             min_q = self.collector_config.get("min_question_length", 2)
-            min_a = self.collector_config.get("min_answer_length", 10)
             
-            if len(str(question)) < min_q or len(answer) < min_a:
+            if len(str(question)) < min_q:
                 return None
             
             # 计算过期时间
@@ -318,11 +361,10 @@ class QAExtractionService:
             else:
                 answer = str(output) if output else ""
             
-            # 验证
+            # 验证（只验证question，answer允许为空以保留bad case）
             min_q = self.collector_config.get("min_question_length", 2)
-            min_a = self.collector_config.get("min_answer_length", 10)
             
-            if len(str(question)) < min_q or len(answer) < min_a:
+            if len(str(question)) < min_q:
                 return None
             
             # 排除LLM和retrieve_tools
@@ -438,6 +480,24 @@ class QAExtractionService:
             return True
         
         return False
+    
+    async def _is_duplicate_full_with_source(self, qa_hash: str) -> Tuple[bool, str]:
+        """
+        完整去重检查：内存缓存 + ES查询（返回来源）
+        
+        Returns:
+            (is_duplicate, source): source为"memory"、"es"或""
+        """
+        # 先检查内存缓存
+        if qa_hash in self._hash_cache:
+            return True, "memory"
+        
+        # 再检查ES
+        if await self._check_hash_exists_in_es(qa_hash):
+            self._hash_cache.add(qa_hash)
+            return True, "es"
+        
+        return False, ""
     
     async def _save_task(self, task: dict):
         """保存任务到ES"""
