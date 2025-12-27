@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime
 import locale
 import logging
 import os
@@ -175,10 +176,14 @@ class LocalEs(BaseEs):
 
     async def search(self, index_name: str, body: dict[str, Any]):
         data = await self._read_json_safe(self._index_path(index_name)) or {}
+        query = body.get("query", {})
         docs = self._build_docs(data)
-        docs = self._filter_docs(docs, body.get("query", {}))
-        docs = self._sort_docs(docs, body.get("sort", []))
-        return {"hits": {"hits": docs[: body.get("size", 10)]}}
+        filtered_docs = self._filter_docs(docs, query)
+        docs = self._sort_docs(filtered_docs, body.get("sort", []))
+        result_size = body.get("size", 10)
+        result_docs = docs[:result_size]
+        
+        return {"hits": {"hits": result_docs, "total": {"value": len(filtered_docs)}}}
 
     # ------------------------------------------------------------------
     # Helpers for naive query execution
@@ -188,7 +193,7 @@ class LocalEs(BaseEs):
     def _build_docs(data: dict[str, Any]):
         return [{"_id": k, "_source": v} for k, v in data.items()]
 
-    def _filter_docs(self, docs: list[dict[str, Any]], query: dict[str, Any]):
+    def _filter_docs(self, docs: list[dict[str, Any]], query: dict[str, Any]) -> list[dict[str, Any]]:
         if not query:
             return docs
 
@@ -235,6 +240,76 @@ class LocalEs(BaseEs):
                     if not exclude:
                         filtered_docs.append(doc)
                 return filtered_docs
+
+        if "range" in query:
+            range_conditions = query["range"]
+            filtered_docs = []
+            for doc in docs:
+                match = True
+                for field, range_params in range_conditions.items():
+                    value = doc["_source"].get(field, "")
+                    value_str = str(value)
+                    
+                    # 解析文档时间
+                    parsed_dt = None
+                    try:
+                        if len(value_str) > 19:
+                            # 截断为 26 字符（6 位小数）
+                            value_str_truncated = value_str[:26]
+                            parsed_dt = datetime.strptime(value_str_truncated, "%Y-%m-%d %H:%M:%S.%f")
+                        else:
+                            parsed_dt = datetime.strptime(value_str, "%Y-%m-%d %H:%M:%S.%f")
+                    except Exception:
+                        pass
+                    
+                    # 实际的 range 过滤逻辑
+                    try:
+                        if parsed_dt:
+                            for op, threshold in range_params.items():
+                                threshold_str = str(threshold)
+                                
+                                # 解析阈值时间：支持带微秒和不带微秒的格式
+                                if len(threshold_str) > 19:
+                                    # 带微秒：截断为 26 字符（6 位小数）
+                                    threshold_dt = datetime.strptime(threshold_str[:26], "%Y-%m-%d %H:%M:%S.%f")
+                                else:
+                                    # 不带微秒：只有 19 字符
+                                    threshold_dt = datetime.strptime(threshold_str, "%Y-%m-%d %H:%M:%S")
+
+                                if op == "gte" and parsed_dt < threshold_dt:
+                                    match = False
+                                    break
+                                elif op == "lte" and parsed_dt > threshold_dt:
+                                    match = False
+                                    break
+                                elif op == "gt" and parsed_dt <= threshold_dt:
+                                    match = False
+                                    break
+                                elif op == "lt" and parsed_dt >= threshold_dt:
+                                    match = False
+                                    break
+                                
+                                if not match:
+                                    break
+                    except Exception:
+                        # 回退到字符串比较
+                        for op, threshold in range_params.items():
+                            if op == "gte" and str(value) < str(threshold):
+                                match = False
+                                break
+                            if op == "lte" and str(value) > str(threshold):
+                                match = False
+                                break
+                            if op == "gt" and str(value) <= str(threshold):
+                                match = False
+                                break
+                            if op == "lt" and str(value) >= str(threshold):
+                                match = False
+                                break
+                if match:
+                    filtered_docs.append(doc)
+            
+            return filtered_docs
 
         return docs
 

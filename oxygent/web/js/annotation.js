@@ -131,10 +131,15 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 // 预览导入
-async function previewExtraction(startTime, endTime) {
+async function previewExtraction(startTime, endTime, includeSubNodes = true, limit = 1000) {
     return apiRequest('/extract/preview', {
         method: 'POST',
-        body: JSON.stringify({ start_time: startTime, end_time: endTime })
+        body: JSON.stringify({ 
+            start_time: startTime, 
+            end_time: endTime,
+            include_sub_nodes: includeSubNodes,
+            limit: limit
+        })
     });
 }
 

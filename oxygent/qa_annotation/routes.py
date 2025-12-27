@@ -124,6 +124,8 @@ async def preview_extraction(request: ExtractionRequest):
         result = await service.preview(
             start_time=request.start_time,
             end_time=request.end_time,
+            include_sub_nodes=request.include_sub_nodes,
+            limit=request.limit,
         )
         
         return WebResponse(data=result).to_dict()

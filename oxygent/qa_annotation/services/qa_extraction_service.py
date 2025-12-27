@@ -462,6 +462,8 @@ class QAExtractionService:
         self,
         start_time: str,
         end_time: str,
+        include_sub_nodes: bool = True,
+        limit: int = 1000,
     ) -> Dict[str, Any]:
         """预览可提取的数据量"""
         stats = {
