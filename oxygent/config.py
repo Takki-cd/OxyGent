@@ -621,3 +621,67 @@ class Config:
     @classmethod
     def get_tool_is_concurrent_init(cls):
         return cls.get_module_config("tool", "is_concurrent_init")
+
+    """ qa_annotation - QA标注平台配置 """
+
+    @classmethod
+    def get_qa_annotation_config(cls) -> dict:
+        """获取QA标注平台完整配置"""
+        return cls._config.get("qa_annotation", {})
+
+    @classmethod
+    def set_qa_annotation_config(cls, config: dict):
+        """设置QA标注平台配置"""
+        cls.set_module_config("qa_annotation", config)
+
+    @classmethod
+    def is_qa_annotation_enabled(cls) -> bool:
+        """检查QA标注功能是否启用"""
+        return cls.get_qa_annotation_config().get("enabled", False)
+
+    @classmethod
+    def is_qa_realtime_hook_enabled(cls) -> bool:
+        """检查实时Hook采集是否启用"""
+        if not cls.is_qa_annotation_enabled():
+            return False
+        return cls.get_qa_annotation_config().get("realtime_hook_enabled", False)
+
+    @classmethod
+    def get_qa_mq_config(cls) -> dict:
+        """获取MQ配置"""
+        return cls.get_qa_annotation_config().get("mq", {})
+
+    @classmethod
+    def get_qa_mq_type(cls) -> str:
+        """获取MQ类型 (redis/rabbitmq/kafka)"""
+        return cls.get_qa_mq_config().get("type", "redis")
+
+    @classmethod
+    def get_qa_collector_config(cls) -> dict:
+        """获取采集器配置"""
+        return cls.get_qa_annotation_config().get("collector", {})
+
+    @classmethod
+    def get_qa_llm_processor_config(cls) -> dict:
+        """获取LLM处理器配置"""
+        return cls.get_qa_annotation_config().get("llm_processor", {})
+
+    @classmethod
+    def is_qa_llm_processor_enabled(cls) -> bool:
+        """检查LLM处理器是否启用"""
+        return cls.get_qa_llm_processor_config().get("enabled", True)
+
+    @classmethod
+    def get_qa_task_config(cls) -> dict:
+        """获取任务配置"""
+        return cls.get_qa_annotation_config().get("task", {})
+
+    @classmethod
+    def get_qa_review_config(cls) -> dict:
+        """获取审核配置"""
+        return cls.get_qa_annotation_config().get("review", {})
+
+    @classmethod
+    def get_qa_platform_config(cls) -> dict:
+        """获取平台配置"""
+        return cls.get_qa_annotation_config().get("platform", {})
