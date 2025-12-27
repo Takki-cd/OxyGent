@@ -107,6 +107,38 @@ class Config:
             "mcp_is_keep_alive": True,
             "is_concurrent_init": True,
         },
+        "qa_annotation": {
+            "enabled": False,
+            "realtime_hook_enabled": False,
+            "mq": {
+                "type": "redis_stream",
+            },
+            "llm_processor": {
+                "enabled": False,
+                "model": "default_llm",
+                "batch_size": 10,
+                "max_retries": 3,
+                "retry_delay_seconds": 5,
+                "quality_threshold": 0.3,
+            },
+            "collector": {
+                "batch_size": 100,
+                "max_retries": 3,
+                "min_question_length": 2,
+                "min_answer_length": 1,
+            },
+            "task": {
+                "default_priority": 1,
+                "expire_hours": 72,
+                "max_assignments_per_task": 3,
+                "dedup_enabled": True,
+            },
+            "platform": {
+                "page_size": 20,
+                "enable_kb_export": False,
+                "export_formats": ["json", "jsonl", "csv"],
+            },
+        },
     }
 
     @classmethod

@@ -69,6 +69,34 @@
         "tool": {
             "mcp_is_keep_alive": true, 
             "is_concurrent_init": true
+        },
+        "qa_annotation": {
+            "enabled": true,
+            "realtime_hook_enabled": false,
+            "mq": {
+                "type": "redis_stream"
+            },
+            "llm_processor": {
+                "enabled": false,
+                "model": "default_llm",
+                "batch_size": 10,
+                "quality_threshold": 0.3
+            },
+            "collector": {
+                "batch_size": 100,
+                "min_question_length": 2,
+                "min_answer_length": 1
+            },
+            "task": {
+                "default_priority": 1,
+                "expire_hours": 72,
+                "dedup_enabled": true
+            },
+            "platform": {
+                "page_size": 20,
+                "enable_kb_export": false,
+                "export_formats": ["json", "jsonl", "csv"]
+            }
         }
     },
     "dev": {

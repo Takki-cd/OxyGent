@@ -1058,6 +1058,38 @@ class MAS(BaseModel):
 
         app.include_router(router)
 
+        # 注册QA标注平台路由（如果启用）
+        if Config.is_qa_annotation_enabled():
+            try:
+                from oxygent.qa_annotation import qa_router, set_qa_clients
+                # 获取ES客户端
+                es_client = None
+                if hasattr(self, '_es_client') and self._es_client:
+                    es_client = self._es_client
+                else:
+                    # 尝试从DBFactory获取
+                    from oxygent.db_factory import DBFactory
+                    db_factory = DBFactory()
+                    es_config = Config.get_es_config()
+                    if es_config:
+                        from oxygent.databases.db_es.jes_es import JesEs
+                        es_client = db_factory.get_instance(
+                            JesEs,
+                            es_config["hosts"],
+                            es_config.get("user"),
+                            es_config.get("password"),
+                        )
+                    else:
+                        from oxygent.databases.db_es.local_es import LocalEs
+                        es_client = db_factory.get_instance(LocalEs)
+                
+                if es_client:
+                    set_qa_clients(es_client)
+                    app.include_router(qa_router)
+                    logger.info("QA Annotation platform enabled, routes registered")
+            except Exception as e:
+                logger.warning(f"Failed to initialize QA Annotation platform: {e}")
+
         web_src = "web"
         with importlib.resources.as_file(
             importlib.resources.files("oxygent") / web_src

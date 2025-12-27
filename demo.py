@@ -3,6 +3,7 @@ import os
 
 from oxygent import MAS, Config, oxy, preset_tools
 
+Config.load_from_json("./config.json", env="default")
 Config.set_agent_llm_model("default_llm")
 
 

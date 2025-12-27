@@ -103,8 +103,8 @@ class QAExtractionService:
                     stats["skipped"] += 1
                     continue
                 
-                # 去重检查
-                if self._is_duplicate(e2e_task["qa_hash"]):
+                # 去重检查（内存缓存 + ES）
+                if await self._is_duplicate_full(e2e_task["qa_hash"]):
                     stats["skipped"] += 1
                     continue
                 
@@ -205,8 +205,8 @@ class QAExtractionService:
                 stats["skipped"] += 1
                 continue
             
-            # 去重
-            if self._is_duplicate(task["qa_hash"]):
+            # 去重（内存缓存 + ES）
+            if await self._is_duplicate_full(task["qa_hash"]):
                 stats["skipped"] += 1
                 continue
             
@@ -398,7 +398,7 @@ class QAExtractionService:
             return None
     
     def _is_duplicate(self, qa_hash: str) -> bool:
-        """检查是否重复"""
+        """检查是否重复（内存缓存）"""
         if not self.task_config.get("dedup_enabled", True):
             return False
         
@@ -410,6 +410,32 @@ class QAExtractionService:
         # 限制缓存大小
         if len(self._hash_cache) > 100000:
             self._hash_cache = set(list(self._hash_cache)[50000:])
+        
+        return False
+    
+    async def _check_hash_exists_in_es(self, qa_hash: str) -> bool:
+        """检查qa_hash是否已存在于ES中"""
+        try:
+            query = {
+                "query": {"term": {"qa_hash": qa_hash}},
+                "size": 0
+            }
+            result = await self.es_client.search(self.task_index, query)
+            count = result.get("hits", {}).get("total", {}).get("value", 0)
+            return count > 0
+        except Exception:
+            return False
+    
+    async def _is_duplicate_full(self, qa_hash: str) -> bool:
+        """完整去重检查：内存缓存 + ES查询"""
+        # 先检查内存缓存
+        if self._is_duplicate(qa_hash):
+            return True
+        
+        # 再检查ES
+        if await self._check_hash_exists_in_es(qa_hash):
+            self._hash_cache.add(qa_hash)
+            return True
         
         return False
     
