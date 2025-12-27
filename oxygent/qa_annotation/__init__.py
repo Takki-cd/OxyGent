@@ -34,18 +34,20 @@ MVP版本核心功能:
    app.include_router(qa_router)
 
 3. 初始化ES索引:
-   from oxygent.qa_annotation.init_es import init_qa_indices
-   await init_qa_indices(es_client)
+   调用 POST /api/qa/admin/init-indices
 """
 
 # API路由
 from .routes import qa_router, set_qa_clients
 
-# 业务服务
+# 业务服务（单例模式）
 from .services import (
     QAExtractionService,
     TaskService,
     AnnotationService,
+    get_extraction_service,
+    get_task_service,
+    get_annotation_service,
 )
 
 # 数据模型
@@ -56,6 +58,8 @@ from .schemas import (
     QAAnnotation,
     QualityLabel,
     ReviewStatus,
+    QASourceType,
+    QAPriority,
 )
 
 # 采集器（实时Hook，默认关闭）
@@ -70,6 +74,9 @@ __all__ = [
     "QAExtractionService",
     "TaskService",
     "AnnotationService",
+    "get_extraction_service",
+    "get_task_service",
+    "get_annotation_service",
     
     # Schemas - Task
     "QATask",
@@ -80,6 +87,10 @@ __all__ = [
     "QAAnnotation",
     "QualityLabel",
     "ReviewStatus",
+    
+    # Schemas - Types
+    "QASourceType",
+    "QAPriority",
     
     # Collectors
     "QACollectorHook",

@@ -158,6 +158,7 @@ async function fetchTasksTree(page = 1, pageSize = 20, filters = {}) {
         page_size: pageSize
     });
     if (filters.status) params.append('status', filters.status);
+    if (filters.priority !== '' && filters.priority !== undefined) params.append('priority', filters.priority);
     if (filters.batchId) params.append('batch_id', filters.batchId);
     if (filters.search) params.append('search', filters.search);
     

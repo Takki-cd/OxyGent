@@ -156,6 +156,7 @@ class TaskService:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
+        priority: Optional[int] = None,
         batch_id: Optional[str] = None,
         search_keyword: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -193,6 +194,7 @@ class TaskService:
             page=page,
             page_size=page_size,
             status=status,
+            priority=priority,
             batch_id=batch_id,
             search_keyword=search_keyword,
             only_root=True,

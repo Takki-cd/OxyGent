@@ -78,8 +78,15 @@ class TaskStatusUpdateRequest(BaseModel):
 
 
 # =============================================================================
-# 全局ES客户端引用
+# Service单例管理
 # =============================================================================
+
+from .services import (
+    set_service_clients,
+    get_extraction_service,
+    get_task_service,
+    get_annotation_service,
+)
 
 _es_client = None
 _mq_client = None
@@ -90,6 +97,7 @@ def set_qa_clients(es_client, mq_client=None):
     global _es_client, _mq_client
     _es_client = es_client
     _mq_client = mq_client
+    set_service_clients(es_client, mq_client)
 
 
 def get_es_client():
@@ -111,8 +119,7 @@ async def preview_extraction(request: ExtractionRequest):
     用于在执行提取前预估数据量
     """
     try:
-        from .services import QAExtractionService
-        service = QAExtractionService(get_es_client())
+        service = get_extraction_service()
         
         result = await service.preview(
             start_time=request.start_time,
@@ -139,8 +146,7 @@ async def execute_extraction(request: ExtractionRequest):
     4. 为每个node创建子任务（P1-P3优先级，parent_task_id指向E2E任务）
     """
     try:
-        from .services import QAExtractionService
-        service = QAExtractionService(get_es_client())
+        service = get_extraction_service()
         
         result = await service.extract_and_save(
             start_time=request.start_time,
@@ -180,8 +186,7 @@ async def list_tasks(
     - only_root=true: 只返回E2E任务（用于树形展示的顶层）
     """
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.list_tasks(
             page=page,
@@ -208,6 +213,7 @@ async def list_tasks_tree(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
     status: Optional[str] = None,
+    priority: Optional[int] = None,
     batch_id: Optional[str] = None,
     search: Optional[str] = None,
 ):
@@ -233,13 +239,13 @@ async def list_tasks_tree(
     }
     """
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.list_root_tasks_with_tree(
             page=page,
             page_size=page_size,
             status=status,
+            priority=priority,
             batch_id=batch_id,
             search_keyword=search,
         )
@@ -254,8 +260,7 @@ async def list_tasks_tree(
 async def get_task(task_id: str):
     """获取任务详情"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         task = await service.get_task(task_id)
         if not task:
@@ -275,8 +280,7 @@ async def get_task_tree(task_id: str):
     无论传入的是E2E任务还是子任务，都返回完整的树形结构
     """
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.get_task_tree(task_id)
         if not result.get("root"):
@@ -292,8 +296,7 @@ async def get_task_tree(task_id: str):
 async def assign_task(request: TaskAssignRequest):
     """分配任务给标注者"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         success = await service.assign_task(request.task_id, request.assigned_to)
         if success:
@@ -309,8 +312,7 @@ async def assign_task(request: TaskAssignRequest):
 async def update_task_status(request: TaskStatusUpdateRequest):
     """更新任务状态"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         success = await service.update_task_status(
             task_id=request.task_id,
@@ -334,8 +336,7 @@ async def get_pending_tasks(
 ):
     """获取待标注任务列表"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.get_pending_tasks_for_annotator(
             annotator_id=annotator_id,
@@ -353,8 +354,7 @@ async def get_pending_tasks(
 async def get_stats():
     """获取任务统计信息"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.get_stats()
         return WebResponse(data=result).to_dict()
@@ -367,8 +367,7 @@ async def get_stats():
 async def get_batch_list():
     """获取批次列表"""
     try:
-        from .services import TaskService
-        service = TaskService(get_es_client())
+        service = get_task_service()
         
         result = await service.get_batch_list()
         return WebResponse(data={"batches": result}).to_dict()
@@ -391,8 +390,7 @@ async def submit_annotation(request: AnnotationSubmitRequest):
     2. 更新task状态为annotated
     """
     try:
-        from .services import AnnotationService
-        service = AnnotationService(get_es_client(), _mq_client)
+        service = get_annotation_service()
         
         result = await service.submit_annotation(
             task_id=request.task_id,
@@ -424,8 +422,7 @@ async def submit_annotation(request: AnnotationSubmitRequest):
 async def get_annotation(annotation_id: str):
     """获取标注详情"""
     try:
-        from .services import AnnotationService
-        service = AnnotationService(get_es_client())
+        service = get_annotation_service()
         
         annotation = await service.get_annotation(annotation_id)
         if not annotation:
@@ -441,8 +438,7 @@ async def get_annotation(annotation_id: str):
 async def get_annotation_by_task(task_id: str):
     """根据任务ID获取标注"""
     try:
-        from .services import AnnotationService
-        service = AnnotationService(get_es_client())
+        service = get_annotation_service()
         
         annotation = await service.get_annotation_by_task(task_id)
         if not annotation:
@@ -465,8 +461,7 @@ async def review_annotation(request: ReviewRequest):
     - needs_revision: 需要修改
     """
     try:
-        from .services import AnnotationService
-        service = AnnotationService(get_es_client(), _mq_client)
+        service = get_annotation_service()
         
         result = await service.review_annotation(
             annotation_id=request.annotation_id,
