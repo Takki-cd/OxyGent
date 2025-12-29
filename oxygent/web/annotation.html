@@ -9,7 +9,7 @@
     <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
     <title>QA标注平台 - OxyGent</title>
     <link rel="stylesheet" href="./css/style.css?v=1">
-    <link rel="stylesheet" href="./css/annotation.css?v=1">
+    <link rel="stylesheet" href="./css/annotation.css?v=3">
 </head>
 <body>
 <div class="annotation-wrapper">
@@ -19,17 +19,17 @@
             <img src="./image/group-favicon.png" alt="Logo">
             <h1>QA标注平台</h1>
         </div>
-        <div class="user-info">
+        <div class="header-actions">
             <button class="btn btn-secondary btn-small" onclick="handleInitIndices()" title="初始化ES索引">
                 初始化索引
             </button>
             <button class="btn btn-secondary btn-small" onclick="window.open('index.html', '_blank')">
                 返回主页
             </button>
+        </div>
+        <div class="user-info">
             <div class="user-role" id="userRole">标注员</div>
-            <span class="user-name" id="userName">标注员</span>
-            <!-- 角色切换（演示用） -->
-            <select onchange="switchRole(this.value)" style="padding:4px 8px; border-radius:4px; border:1px solid #ddd; font-size:12px;">
+            <select onchange="switchRole(this.value)" class="role-select">
                 <option value="annotator">标注员</option>
                 <option value="reviewer">审核员</option>
                 <option value="admin">管理员</option>
@@ -39,79 +39,115 @@
 
     <!-- 主体内容 -->
     <main class="annotation-body">
-        <!-- 左侧面板 -->
-        <aside class="annotation-sidebar">
-            <!-- 侧边栏标题 -->
-            <div class="sidebar-header">
-                <h2 class="sidebar-title">任务列表</h2>
-                <div class="sidebar-tabs">
-                    <button class="sidebar-tab active" onclick="toggleImportPanel()">数据导入</button>
-                </div>
-            </div>
-
+        <!-- 左侧边栏 -->
+        <aside class="annotation-sidebar" id="annotationSidebar">
+            <!-- 拖拽调整宽度 -->
+            <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
+            
             <!-- 导入面板 -->
-            <div class="import-panel" id="importPanel">
-                <div class="import-row">
-                    <label>开始时间</label>
-                    <input type="datetime-local" id="importStartTime">
+            <div class="sidebar-section">
+                <div class="sidebar-section-header" onclick="toggleImportPanel()">
+                    <span>数据导入</span>
+                    <span class="toggle-icon" id="importToggleIcon">▼</span>
                 </div>
-                <div class="import-row">
-                    <label>结束时间</label>
-                    <input type="datetime-local" id="importEndTime">
-                </div>
-                <div class="import-row">
-                    <label>最大数量</label>
-                    <input type="number" id="importLimit" value="1000" min="1" max="10000" style="width:100px;">
-                    <label class="form-checkbox" style="margin-left:12px;">
-                        <input type="checkbox" id="importIncludeSubNodes" checked>
-                        含子节点
-                    </label>
-                </div>
-                <div class="import-actions">
-                    <button class="btn btn-secondary" id="btnPreview" onclick="handlePreviewImport()">预览</button>
-                    <button class="btn btn-primary" id="btnImport" onclick="handleExecuteImport()">执行导入</button>
-                </div>
-                <div id="previewResult"></div>
-                <div style="margin-top:12px; font-size:11px; color:#999;">
-                    💡 系统自动去重：相同问答对不会重复导入
+                <div class="import-panel" id="importPanel">
+                    <div class="import-row">
+                        <label>开始时间</label>
+                        <input type="datetime-local" id="importStartTime" class="import-input">
+                    </div>
+                    <div class="import-row">
+                        <label>结束时间</label>
+                        <input type="datetime-local" id="importEndTime" class="import-input">
+                    </div>
+                    <div class="import-row">
+                        <label>最大数量</label>
+                        <input type="number" id="importLimit" value="1000" min="1" max="10000" class="import-input-small">
+                        <label class="form-checkbox">
+                            <input type="checkbox" id="importIncludeSubNodes" checked>
+                            含子节点
+                        </label>
+                    </div>
+                    <div class="import-actions">
+                        <button class="btn btn-secondary btn-small" id="btnPreview" onclick="handlePreviewImport()">预览</button>
+                        <button class="btn btn-primary btn-small" id="btnImport" onclick="handleExecuteImport()">导入</button>
+                    </div>
+                    <div id="previewResult"></div>
                 </div>
             </div>
 
-            <!-- 统计面板 -->
-            <div class="stats-panel" id="statsPanel">
-                <!-- 由JS渲染 -->
-            </div>
-
-            <!-- 过滤器 -->
-            <div class="filter-bar">
-                <select class="filter-select" id="filterStatus">
-                    <option value="">全部状态</option>
-                    <option value="pending">待标注</option>
-                    <option value="assigned">已分配</option>
-                    <option value="annotated">已标注</option>
-                    <option value="approved">已通过</option>
-                    <option value="rejected">已拒绝</option>
-                </select>
-                <select class="filter-select" id="filterPriority">
-                    <option value="">全部优先级</option>
-                    <option value="0">P0-E2E</option>
-                    <option value="1">P1-User</option>
-                    <option value="2">P2-Agent</option>
-                    <option value="3">P3-Tool</option>
-                </select>
-                <select class="filter-select" id="filterBatch">
-                    <option value="">全部批次</option>
+            <!-- 统计卡片 -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <span>数据统计</span>
+                </div>
+                <div class="stats-grid" id="statsPanel">
                     <!-- 由JS渲染 -->
-                </select>
-                <input type="text" class="filter-search" id="filterSearch" placeholder="搜索问题/答案...">
+                </div>
             </div>
 
-            <!-- 任务列表 -->
-            <div class="task-list" id="taskList">
-                <!-- 由JS渲染 -->
-                <div class="empty-state">
+            <!-- 快速筛选 -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <span>快速筛选</span>
+                </div>
+                <div class="filter-section">
+                    <select class="filter-select-full" id="filterStatus" onchange="applyFilters()">
+                        <option value="">全部状态</option>
+                        <option value="pending">待标注</option>
+                        <option value="annotated">已标注</option>
+                        <option value="approved">已通过</option>
+                        <option value="rejected">已拒绝</option>
+                    </select>
+                    <select class="filter-select-full" id="filterPriority" onchange="applyFilters()">
+                        <option value="">全部优先级</option>
+                        <option value="0">P0-E2E</option>
+                        <option value="1">P1-User</option>
+                        <option value="2">P2-Agent</option>
+                        <option value="3">P3-Tool</option>
+                    </select>
+                    <input type="text" class="filter-input" id="filterSearch" placeholder="搜索问题..." oninput="debounce(applyFilters, 500)()">
+                    <select class="filter-select-full" id="filterBatch" onchange="applyFilters()">
+                        <option value="">全部批次</option>
+                        <!-- 由JS渲染 -->
+                    </select>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 - QA列表 -->
+        <section class="annotation-main">
+            <div class="main-header">
+                <h2 class="main-title">QA数据列表</h2>
+                <div class="main-actions">
+                    <button class="btn btn-secondary btn-small" onclick="loadTasks()">
+                        刷新
+                    </button>
+                </div>
+            </div>
+            
+            <!-- QA列表表格 -->
+            <div class="qa-table-container">
+                <table class="qa-table" id="qaTable">
+                    <thead>
+                        <tr>
+                            <th data-column="id" style="width: 100px;">ID</th>
+                            <th data-column="priority" style="width: 80px;">优先级</th>
+                            <th data-column="status" style="width: 90px;">状态</th>
+                            <th data-column="source" style="width: 110px;">来源</th>
+                            <th data-column="question">问题</th>
+                            <th data-column="answer">答案摘要</th>
+                            <th data-column="time" style="width: 140px;">时间</th>
+                            <th data-column="action" style="width: 80px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="qaTableBody">
+                        <!-- 由JS渲染 -->
+                    </tbody>
+                </table>
+                
+                <div class="empty-state" id="emptyState">
                     <img src="./image/empty.svg" alt="">
-                    <p>暂无任务数据，请先导入</p>
+                    <p>暂无任务数据，请先导入数据</p>
                 </div>
             </div>
 
@@ -119,35 +155,29 @@
             <div class="pagination">
                 <span class="pagination-info" id="paginationInfo">第 1/1 页，共 0 条</span>
                 <div class="pagination-btns" id="paginationBtns">
-                    <button class="pagination-btn" disabled>上一页</button>
-                    <button class="pagination-btn" disabled>下一页</button>
-                </div>
-            </div>
-        </aside>
-
-        <!-- 右侧主内容区 -->
-        <section class="annotation-main">
-            <div class="main-header">
-                <h2 class="main-title">任务详情与标注</h2>
-                <div class="main-actions">
-                    <button class="btn btn-secondary btn-small" onclick="loadTasks()">
-                        刷新列表
-                    </button>
-                </div>
-            </div>
-
-            <div class="task-detail" id="taskDetail">
-                <!-- 由JS渲染 -->
-                <div class="task-detail-empty">
-                    <img src="./image/empty.svg" alt="">
-                    <p>请从左侧选择一个任务开始标注</p>
+                    <button class="pagination-btn" onclick="changePage(1)">首页</button>
+                    <button class="pagination-btn" onclick="changePage(state.currentPage - 1)">上一页</button>
+                    <span class="page-num" id="pageNum">1</span>
+                    <button class="pagination-btn" onclick="changePage(state.currentPage + 1)">下一页</button>
+                    <button class="pagination-btn" onclick="changePage(state.totalPages)">末页</button>
                 </div>
             </div>
         </section>
     </main>
 </div>
 
-<script src="./js/annotation.js?v=1"></script>
+<!-- 右侧抽屉 - 任务详情与标注 -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="detailDrawer">
+    <div class="drawer-header">
+        <h2 class="drawer-title">任务详情</h2>
+        <button class="drawer-close" onclick="closeDrawer()">×</button>
+    </div>
+    <div class="drawer-body" id="drawerBody">
+        <!-- 由JS渲染 -->
+    </div>
+</aside>
+
+<script src="./js/annotation.js?v=3"></script>
 </body>
 </html>
-

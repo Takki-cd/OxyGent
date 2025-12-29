@@ -60,19 +60,19 @@ class QAExtractionService:
     ) -> Dict[str, Any]:
         """
         提取QA并保存到任务表
-
+        
         核心流程：
         1. 查询时间范围内的trace记录（E2E对话）
         2. 为每个trace创建E2E任务
         3. 查询该trace下的node记录（子调用）
         4. 为每个node创建子任务，parent_task_id指向E2E任务
-
+        
         Args:
             start_time: 开始时间
             end_time: 结束时间
             include_sub_nodes: 是否包含子节点
             limit: 最大提取数量
-
+            
         Returns:
             提取结果统计
         """
@@ -90,18 +90,18 @@ class QAExtractionService:
             },
             "started_at": get_format_time(),
         }
-
+        
         # 确保索引存在
         await self._ensure_index_exists()
-
+        
         try:
             # 1. 查询trace记录
             traces = await self._query_traces(start_time, end_time, limit)
             logger.info(f"Found {len(traces)} traces to extract")
-
+            
             for trace in traces:
                 trace_id = trace.get("trace_id", "")
-
+                
                 # 2. 创建E2E任务
                 e2e_task = self._trace_to_task(trace, batch_id)
 
@@ -136,7 +136,7 @@ class QAExtractionService:
                     stats["skipped"] += 1
                     stats["skip_reasons"]["validation_failed"] += 1
                     continue
-
+                
                 # 去重检查（内存缓存 + ES）
                 is_dup, dup_source = await self._is_duplicate_full_with_source(e2e_task["qa_hash"])
 
@@ -148,7 +148,7 @@ class QAExtractionService:
                     else:
                         stats["skip_reasons"]["duplicate_es"] += 1
                     continue
-
+                
                 # 保存E2E任务
                 try:
                     await self._save_task(e2e_task)
@@ -158,7 +158,7 @@ class QAExtractionService:
                     stats["errors"].append(f"Save E2E task error: {e}")
                     logger.warning(f"Failed to save E2E task {trace_id}: {e}")
                     continue
-
+                
                 # 3. 提取子节点
                 if include_sub_nodes:
                     sub_count = await self._extract_sub_nodes(
@@ -168,21 +168,21 @@ class QAExtractionService:
                         stats=stats
                     )
                     stats["sub_task_count"] += sub_count
-
+        
         except Exception as e:
             logger.error(f"Extraction error: {e}")
             stats["errors"].append(str(e))
-
+        
         stats["finished_at"] = get_format_time()
         stats["total_extracted"] = stats["e2e_count"] + stats["sub_task_count"]
-
+        
         logger.info(
             f"Extraction completed: batch={batch_id}, "
             f"e2e={stats['e2e_count']}, sub={stats['sub_task_count']}, "
             f"skipped={stats['skipped']} (validation={stats['skip_reasons']['validation_failed']}, "
             f"dup_es={stats['skip_reasons']['duplicate_es']}, dup_mem={stats['skip_reasons']['duplicate_memory']})"
         )
-
+        
         return stats
     
     async def _query_traces(
