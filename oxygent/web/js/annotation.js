@@ -1,5 +1,5 @@
 /**
- * QA标注平台 - 前端逻辑（数据概览版 - 修复时间筛选问题）
+ * QA标注平台 - 前端逻辑（全新侧边栏布局版）
  */
 
 // ============================================================================
@@ -13,7 +13,7 @@ const state = {
         role: 'annotator'
     },
     
-    // 任务列表（只显示P0根任务）
+    // 任务列表
     tasks: [],
     totalTasks: 0,
     totalPages: 1,
@@ -24,12 +24,14 @@ const state = {
     currentTask: null,
     currentTaskTree: null,
     
-    // 过滤条件（不包含时间筛选，默认查询所有）
+    // 过滤条件（改造：新增时间范围和Agent筛选）
     filters: {
+        start_time: '',
+        end_time: '',
         status: '',
         priority: '',
-        batchId: '',
-        search: ''
+        search: '',
+        batchId: ''
     },
     
     // 统计数据
@@ -40,20 +42,14 @@ const state = {
         approved: 0
     },
     
-    // 数据概览（不含时间筛选）
-    overview: {
-        traceCount: 0,
-        nodeCount: 0,
-        totalPendingImport: 0,
-        importedCount: 0,
-        importedE2eCount: 0,
-        pendingCount: 0,
-        annotatedCount: 0,
-        approvedCount: 0,
-        rejectedCount: 0
+    // 待导入预览数据
+    preview: {
+        trace_pending: 0,
+        node_pending: 0,
+        total_pending: 0
     },
     
-    // 批次列表（暂时不使用）
+    // 批次列表
     batches: [],
     
     // 当前查看的子任务
@@ -61,7 +57,13 @@ const state = {
     
     // Node Map视图状态
     nodeMapView: 'flowchart',
-    currentFlowchartNode: null
+    currentFlowchartNode: null,
+    
+    // 侧边栏展开状态
+    sidebarState: {
+        pendingImport: true,
+        imported: true
+    }
 };
 
 // Agent头像映射（复用index.html的配色）
@@ -91,11 +93,22 @@ const API_BASE = '/api/qa';
 // 工具函数
 // ============================================================================
 function showToast(message, type = 'info') {
+    // 移除现有的toast
+    const existingToast = document.querySelector('.toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    
+    // 2.5秒后开始淡出
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
 }
 
 function formatDate(dateStr) {
@@ -116,6 +129,22 @@ function formatDateShort(dateStr) {
     } catch {
         return dateStr;
     }
+}
+
+// JSON格式化（用于llm/tool类型的question展示）
+function formatJSON(str) {
+    if (!str) return '(无)';
+    try {
+        const obj = JSON.parse(str);
+        return JSON.stringify(obj, null, 2);
+    } catch {
+        return str;
+    }
+}
+
+// 判断是否为llm或tool类型
+function isLLMorTool(task) {
+    return task.callee_type === 'llm' || task.callee_type === 'tool';
 }
 
 function formatTime(dateStr) {
@@ -151,12 +180,27 @@ function truncate(str, len = 50) {
 }
 
 function getPriorityLabel(priority) {
-    const labels = { 0: 'P0', 1: 'P1', 2: 'P2', 3: 'P3' };
+    // 改造：新的优先级定义
+    // P0: 端到端, P1: Agent, P2: LLM, P3: Tool, P4: 其他
+    const labels = {
+        0: 'P0',
+        1: 'P1',
+        2: 'P2',
+        3: 'P3',
+        4: 'P4'
+    };
     return labels[priority] || `P${priority}`;
 }
 
 function getPriorityClass(priority) {
     return `p${priority}`;
+}
+
+// 获取Agent/Tool显示名称（改造：直接显示被调用者名称）
+function getCalleeDisplay(task) {
+    // 简化：只返回名称，不加图标
+    const callee = task.callee || '';
+    return callee || '-';
 }
 
 function getStatusLabel(status) {
@@ -268,7 +312,7 @@ function formatNumber(num) {
 }
 
 // ============================================================================
-// API调用
+// API调用（改造：支持新的过滤参数）
 // ============================================================================
 async function apiRequest(endpoint, options = {}) {
     try {
@@ -290,86 +334,78 @@ async function apiRequest(endpoint, options = {}) {
     }
 }
 
-// 获取概览（使用导入面板的时间范围，如果没选择则使用默认24小时）
-async function fetchOverview() {
-    const startInput = document.getElementById('importStartTime');
-    const endInput = document.getElementById('importEndTime');
+// 获取待导入预览（改造：支持过滤条件）
+async function fetchPendingPreview() {
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
+    const search = document.getElementById('filterSearch')?.value || '';
     
-    let startTime, endTime;
-    
-    // 如果用户选择了时间范围，使用选择的值
-    if (startInput && startInput.value && endInput && endInput.value) {
-        // 转换为API格式
-        startTime = startInput.value.replace('T', ' ') + ':00';
-        endTime = endInput.value.replace('T', ' ') + ':59';
-    } else {
-        // 默认使用24小时前到现在
-        const now = new Date();
-        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        
-        const formatForAPI = (date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-        };
-        
-        startTime = formatForAPI(oneDayAgo);
-        endTime = formatForAPI(now);
+    if (!startTime || !endTime) {
+        showToast('请先选择时间范围', 'warning');
+        return null;
     }
     
     const params = new URLSearchParams({
-        start_time: startTime,
-        end_time: endTime
+        start_time: startTime.replace('T', ' ') + ':00',
+        end_time: endTime.replace('T', ' ') + ':59',
+        include_sub_nodes: document.getElementById('importIncludeSubNodes')?.checked !== false,
+        search: search
     });
     
-    console.log('Fetching overview with time range:', startTime, 'to', endTime);
-    
-    return apiRequest(`/overview?${params}`);
+    return apiRequest(`/extract/preview?${params}`);
 }
 
+// 获取已导入统计（改造：支持时间范围过滤）
+async function fetchImportedStats() {
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
+    
+    const params = new URLSearchParams();
+    if (startTime) {
+        params.append('start_time', startTime.replace('T', ' ') + ':00');
+    }
+    if (endTime) {
+        params.append('end_time', endTime.replace('T', ' ') + ':59');
+    }
+    
+    const queryString = params.toString();
+    const url = queryString ? `?${queryString}` : '';
+    
+    return apiRequest(`/overview${url}`);
+}
+
+// 获取任务列表（改造：使用新的过滤参数）
 async function fetchTasks(page = 1, pageSize = 15) {
     const params = new URLSearchParams({
         page: page,
-        page_size: pageSize,
-        priority: 0  // 只获取P0根任务
+        page_size: pageSize
     });
     
-    // 状态、批次、搜索筛选
-    if (state.filters.status && state.filters.status !== '') {
-        params.append('status', state.filters.status);
+    // 过滤条件
+    const status = document.getElementById('filterStatus')?.value;
+    const priority = document.getElementById('filterPriority')?.value;
+    const search = document.getElementById('filterSearch')?.value;
+    
+    if (status && status !== '') {
+        params.append('status', status);
     }
-    if (state.filters.batchId && state.filters.batchId !== '') {
-        params.append('batch_id', state.filters.batchId);
+    if (priority && priority !== '') {
+        params.append('priority', priority);
     }
-    if (state.filters.search && state.filters.search.trim() !== '') {
-        params.append('search', state.filters.search.trim());
+    if (search && search.trim() !== '') {
+        params.append('search', search.trim());
     }
     
-    // 时间范围筛选（今日0点到当前时间）
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    // 时间范围（用于过滤创建时间）
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
     
-    const formatForAPI = (date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    };
-    
-    const startTime = formatForAPI(todayStart);
-    const endTime = formatForAPI(now);
-    
-    params.append('start_time', startTime);
-    params.append('end_time', endTime);
-    
-    console.log('Fetching tasks with time filter:', startTime, 'to', endTime);
+    if (startTime) {
+        params.append('start_time', startTime.replace('T', ' ') + ':00');
+    }
+    if (endTime) {
+        params.append('end_time', endTime.replace('T', ' ') + ':59');
+    }
     
     return apiRequest(`/tasks?${params}`);
 }
@@ -449,121 +485,54 @@ async function initIndices() {
 }
 
 // ============================================================================
-// 渲染函数
+// 渲染函数（改造：适配新布局）
 // ============================================================================
 
-// 渲染数据概览卡片（所有任务）
-function renderOverviewCards() {
-    const container = document.getElementById('overviewCards');
-    if (!container) return;
+// 渲染待导入预览区域
+function renderPendingPreview(data) {
+    if (!data) return;
     
-    const o = state.overview;
+    state.preview = {
+        trace_pending: data.trace_pending || 0,
+        node_pending: data.node_pending || 0,
+        total_pending: data.estimated_total || 0
+    };
     
-    // 全部导入任务的统计
-    const importedCount = o.imported_count || 0;
-    const e2eCount = o.imported_e2e_count || 0;
-    const pendingImport = o.total_pending_import || 0;
-    const totalTraces = o.total_traces_in_range || 0;
-    
-    container.innerHTML = `
-        <div class="overview-row">
-            <div class="overview-card pending">
-                <div class="overview-card-value">${formatNumber(pendingImport)}</div>
-                <div class="overview-card-label">待导入</div>
-                <div class="overview-card-sub">范围内共 ${formatNumber(totalTraces)} 条Trace</div>
-            </div>
-            <div class="overview-card imported">
-                <div class="overview-card-value">${formatNumber(importedCount)}</div>
-                <div class="overview-card-label">已导入任务</div>
-                <div class="overview-card-sub">E2E: ${formatNumber(e2eCount)}个</div>
-            </div>
-        </div>
-    `;
+    // 更新数量显示
+    document.getElementById('previewTracePending').textContent = formatNumber(state.preview.trace_pending);
+    document.getElementById('previewNodePending').textContent = formatNumber(state.preview.node_pending);
+    document.getElementById('previewTotalPending').textContent = formatNumber(state.preview.total_pending);
+    document.getElementById('pendingCount').textContent = formatNumber(state.preview.total_pending);
 }
 
-// 渲染标注进度（基于所有任务）
-function renderProgressSection() {
-    const container = document.getElementById('progressSection');
-    if (!container) return;
+// 渲染已导入统计区域（恢复上一版本风格）
+function renderImportedStats(data) {
+    if (!data) return;
     
-    const o = state.overview;
-    // 使用所有任务的统计
-    const pendingCount = o.pending_count || 0;
-    const annotatedCount = o.annotated_count || 0;
-    const approvedCount = o.approved_count || 0;
-    const rejectedCount = o.rejected_count || 0;
-    const total = o.total_tasks || pendingCount + annotatedCount + approvedCount + rejectedCount;
+    const importedCount = data.imported_count || 0;
+    const pendingCount = data.pending_count || 0;
+    const annotatedCount = data.annotated_count || 0;
+    const approvedCount = data.approved_count || 0;
+    const rejectedCount = data.rejected_count || 0;
+    const total = importedCount;
     
-    // 计算进度
-    const annotatedPercent = total > 0 ? Math.round((annotatedCount + approvedCount + rejectedCount) / total * 100) : 0;
+    // 更新已导入总数
+    document.getElementById('importedCount').textContent = formatNumber(importedCount);
+    
+    // 更新各状态数量
+    document.getElementById('statPending').textContent = formatNumber(pendingCount);
+    document.getElementById('statAnnotated').textContent = formatNumber(annotatedCount);
+    document.getElementById('statApproved').textContent = formatNumber(approvedCount);
+    document.getElementById('statRejected').textContent = formatNumber(rejectedCount);
+    
+    // 更新进度条（恢复上一版本逻辑）
+    const totalAnnotated = annotatedCount + approvedCount + rejectedCount;
+    const annotatedPercent = total > 0 ? Math.round(totalAnnotated / total * 100) : 0;
     const approvedPercent = total > 0 ? Math.round(approvedCount / total * 100) : 0;
     
-    container.innerHTML = `
-        <div class="progress-stats-grid">
-            <div class="progress-stat pending">
-                <div class="progress-stat-value">${formatNumber(pendingCount)}</div>
-                <div class="progress-stat-label">待标注</div>
-            </div>
-            <div class="progress-stat annotated">
-                <div class="progress-stat-value">${formatNumber(annotatedCount)}</div>
-                <div class="progress-stat-label">已标注</div>
-            </div>
-            <div class="progress-stat approved">
-                <div class="progress-stat-value">${formatNumber(approvedCount)}</div>
-                <div class="progress-stat-label">已通过</div>
-            </div>
-        </div>
-        <div class="progress-bar-container">
-            <div class="progress-bar-label">标注进度 (全部: ${total}个任务)</div>
-            <div class="progress-bar-track">
-                <div class="progress-bar-fill approved" style="width: ${approvedPercent}%"></div>
-                <div class="progress-bar-fill annotated" style="width: ${annotatedPercent - approvedPercent}%"></div>
-                <div class="progress-bar-fill pending" style="width: ${Math.max(0, 100 - annotatedPercent)}%"></div>
-            </div>
-            <div class="progress-bar-legend">
-                <span class="legend-item"><span class="legend-dot approved"></span>已通过 ${approvedPercent}%</span>
-                <span class="legend-item"><span class="legend-dot annotated"></span>已标注 ${annotatedPercent}%</span>
-                <span class="legend-item"><span class="legend-dot pending"></span>待标注 ${Math.max(0, 100 - annotatedPercent)}%</span>
-            </div>
-        </div>
-    `;
-}
-
-// 渲染统计面板（保留旧接口兼容）
-function renderStats() {
-    const panel = document.getElementById('statsPanel');
-    if (!panel) return;
-    
-    const o = state.overview;
-    panel.innerHTML = `
-        <div class="stat-card total">
-            <div class="stat-value">${o.imported_e2e_count || 0}</div>
-            <div class="stat-label">总任务(E2E)</div>
-        </div>
-        <div class="stat-card pending">
-            <div class="stat-value">${o.pending_count || 0}</div>
-            <div class="stat-label">待标注</div>
-        </div>
-        <div class="stat-card annotated">
-            <div class="stat-value">${o.annotated_count || 0}</div>
-            <div class="stat-label">已标注</div>
-        </div>
-        <div class="stat-card approved">
-            <div class="stat-value">${o.approved_count || 0}</div>
-            <div class="stat-label">已通过</div>
-        </div>
-    `;
-}
-
-// 渲染批次下拉
-function renderBatchSelect() {
-    const select = document.getElementById('filterBatch');
-    if (!select) return;
-    
-    const currentValue = select.value;
-    select.innerHTML = '<option value="">全部批次</option>' +
-        state.batches.map(b => `<option value="${b.batch_id}">${b.batch_id.substring(0, 8)} (${b.count}条)</option>`).join('');
-    select.value = currentValue;
+    document.getElementById('progressApproved').style.width = `${approvedPercent}%`;
+    document.getElementById('progressAnnotated').style.width = `${annotatedPercent - approvedPercent}%`;
+    document.getElementById('progressPending').style.width = `${Math.max(0, 100 - annotatedPercent)}%`;
 }
 
 // 渲染QA表格
@@ -587,9 +556,9 @@ function renderQATable() {
             <td class="task-id" title="${task.task_id}">${getTaskIdShort(task.task_id)}</td>
             <td><span class="qa-priority ${getPriorityClass(task.priority)}">${getPriorityLabel(task.priority)}</span></td>
             <td><span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span></td>
-            <td class="qa-source" title="${getSourceDisplay(task)}">${getSourceDisplay(task)}</td>
+            <td class="qa-callee" title="${getCalleeDisplay(task)}">${getCalleeDisplay(task)}</td>
             <td class="qa-question" title="${task.question || ''}">${task.question || ''}</td>
-            <td class="qa-answer" title="${task.answer || ''}">${truncateText(task.answer, 25)}</td>
+            <td class="qa-answer" title="${task.answer || ''}">${truncateText(task.answer, 30)}</td>
             <td class="qa-time">${formatDateShort(task.created_at)}</td>
             <td class="qa-action">
                 <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); openTaskDetail('${task.task_id}')">
@@ -598,6 +567,9 @@ function renderQATable() {
             </td>
         </tr>
     `).join('');
+    
+    // 更新主内容区统计
+    document.getElementById('mainStats').textContent = `共 ${state.totalTasks} 条`;
 }
 
 // 渲染分页
@@ -776,7 +748,7 @@ function switchNodeMapView(view) {
     renderDrawerBody();
 }
 
-// 渲染抽屉内容
+// 渲染抽屉内容（改造：适配新的平铺数据结构）
 function renderDrawerBody() {
     const container = document.getElementById('drawerBody');
     if (!container || !state.currentTask) return;
@@ -784,35 +756,50 @@ function renderDrawerBody() {
     const task = state.currentTask;
     const tree = state.currentTaskTree;
     const isReviewer = state.currentUser.role === 'reviewer' || state.currentUser.role === 'admin';
+    
+    // 改造：子任务不再通过parent_task_id关联，改为通过source_trace_id查找同trace的E2E任务
     const children = tree && tree.children ? tree.children : [];
     
     container.innerHTML = `
-        <div class="qa-section">
+        <div class="qa-section task-info-section">
             <div class="qa-label">
                 <span>任务信息</span>
                 <span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span>
             </div>
-            <div style="display:flex; gap:16px; font-size:12px; color:#666; margin-top:8px; flex-wrap: wrap;">
-                <span>${getAgentAvatar(getAgentName(task), 20)}<strong>${getAgentName(task)}</strong></span>
-                <span>来源: ${getSourceDisplay(task)}</span>
-                <span>创建: ${formatDate(task.created_at)}</span>
+            <div class="task-info-row">
+                <span class="task-info-label">Agent:</span>
+                <span class="task-info-value">${getCalleeDisplay(task)}</span>
             </div>
-            <div style="display:flex; gap:16px; font-size:11px; color:#999; margin-top:8px;">
-                <span>caller: ${task.caller || '-'}</span>
-                <span>callee: ${task.callee || '-'}</span>
-                <span>caller_type: ${task.caller_type || '-'}</span>
-                <span>callee_type: ${task.callee_type || '-'}</span>
+            <div class="task-info-row">
+                <span class="task-info-label">类型:</span>
+                <span class="task-info-value">${getPriorityLabel(task.priority)} (${task.callee_type || '-'})</span>
+            </div>
+            <div class="task-info-row">
+                <span class="task-info-label">创建:</span>
+                <span class="task-info-value">${formatDate(task.created_at)}</span>
+            </div>
+            <div class="task-info-row">
+                <span class="task-info-label">trace_id:</span>
+                <span class="task-info-value">${task.source_trace_id || '-'}</span>
+            </div>
+            <div class="task-info-row">
+                <span class="task-info-label">node_id:</span>
+                <span class="task-info-value">${task.source_node_id || '-'}</span>
+            </div>
+            <div class="task-info-row">
+                <span class="task-info-label">task_id:</span>
+                <span class="task-info-value">${task.task_id}</span>
             </div>
         </div>
         
         <div class="qa-section">
-            <div class="qa-label">❓ 原始问题</div>
-            <div class="qa-content">${task.question || '(无)'}</div>
+            <div class="qa-label">📥 Input</div>
+            <div class="qa-content ${isLLMorTool(task) ? 'json-content' : ''}">${isLLMorTool(task) ? formatJSON(task.question) : (task.question || '(无)')}</div>
         </div>
         
         <div class="qa-section">
-            <div class="qa-label">💬 原始答案</div>
-            <div class="qa-content">${task.answer || '(无)'}</div>
+            <div class="qa-label">📤 Output</div>
+            <div class="qa-content ${isLLMorTool(task) ? 'json-content' : ''}">${isLLMorTool(task) ? formatJSON(task.answer) : (task.answer || '(无)')}</div>
         </div>
         
         <div class="annotation-form">
@@ -820,14 +807,14 @@ function renderDrawerBody() {
             
             <div class="form-row">
                 <div class="form-group">
-                    <label>标注后问题</label>
+                    <label>修正后Input</label>
                     <textarea id="annotatedQuestion" rows="3">${task.question || ''}</textarea>
                 </div>
             </div>
             
             <div class="form-row">
                 <div class="form-group">
-                    <label>标注后答案</label>
+                    <label>修正后Output</label>
                     <textarea id="annotatedAnswer" rows="4">${task.answer || ''}</textarea>
                 </div>
             </div>
@@ -911,13 +898,14 @@ function renderDrawerBody() {
         
         ${children.length > 0 ? `
             <div class="child-task-section">
-                <div class="child-task-title">📋 子任务详情列表</div>
+                <div class="child-task-title">📋 同trace关联任务 (${children.length}个)</div>
                 <div class="child-task-list">
                     ${children.map(child => `
                         <div class="child-task-item ${state.currentChildTask?.task_id === child.task_id ? 'active' : ''}" 
                              onclick="viewChildTask('${child.task_id}')">
                             <div class="child-task-item-header">
-                                <span class="child-task-item-type ${child.source_type}">${getSourceDisplay(child)}</span>
+                                <span class="child-task-item-type ${getPriorityClass(child.priority)}">${getPriorityLabel(child.priority)}</span>
+                                <span class="child-task-item-callee">${getCalleeDisplay(child)}</span>
                                 <span class="child-task-item-status">
                                     <span class="qa-status ${getStatusClass(child.status)}">${getStatusLabel(child.status)}</span>
                                 </span>
@@ -932,19 +920,18 @@ function renderDrawerBody() {
         ${state.currentChildTask && state.currentChildTask.task_id !== task.task_id ? `
             <div class="qa-section" style="background: #FFF9E6; margin-top: 16px;">
                 <div class="qa-label">
-                    <span>📋 子任务详情</span>
+                    <span>📋 关联任务详情</span>
                     <button class="btn btn-small btn-secondary" onclick="closeChildTaskDetail()">关闭</button>
                 </div>
                 <div style="margin-top: 8px; font-size: 12px; color: #666;">
                     <div style="margin-bottom: 8px;">
-                        <strong>来源：</strong>${getAgentAvatar(getAgentName(state.currentChildTask), 16)}${getSourceDisplay(state.currentChildTask)}
+                        <strong>类型：</strong>${getPriorityLabel(state.currentChildTask.priority)} | 
+                        <strong>Agent：</strong>${getCalleeDisplay(state.currentChildTask)}
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong>caller:</strong> ${state.currentChildTask.caller || '-'} | 
-                        <strong>callee:</strong> ${state.currentChildTask.callee || '-'}
+                        <strong>Input：</strong>${state.currentChildTask.question || '(无)'}
                     </div>
-                    <div style="margin-bottom: 8px;"><strong>问题：</strong>${state.currentChildTask.question || '(无)'}</div>
-                    <div><strong>答案：</strong>${state.currentChildTask.answer || '(无)'}</div>
+                    <div><strong>Output：</strong>${state.currentChildTask.answer || '(无)'}</div>
                 </div>
             </div>
         ` : ''}
@@ -1035,90 +1022,55 @@ async function loadTasks() {
 
 async function loadOverview() {
     try {
-        const result = await fetchOverview();
+        const result = await fetchImportedStats();
         console.log('Overview result:', result);
-        // 直接使用后端返回的字段名（下划线格式）
         state.overview = result;
-        renderOverviewCards();
-        renderProgressSection();
+        renderPendingPreview(result);
+        renderImportedStats(result);
     } catch (error) {
         console.error('加载概览失败:', error);
-        document.getElementById('overviewCards').innerHTML = '<div class="overview-loading">加载失败</div>';
-        document.getElementById('progressSection').innerHTML = '<div class="progress-loading">加载失败</div>';
     }
 }
 
-async function loadStats() {
+async function loadImportedStats() {
     try {
-        const result = await fetchStats();
-        state.stats = result;
-        renderStats();
+        const result = await fetchImportedStats();
+        renderImportedStats(result);
     } catch (error) {
-        console.error('加载统计失败:', error);
-    }
-}
-
-async function loadBatches() {
-    try {
-        const result = await fetchBatches();
-        state.batches = result.batches || [];
-        renderBatchSelect();
-    } catch (error) {
-        console.log('批次列表加载失败:', error.message);
-        state.batches = [];
+        console.error('加载已导入统计失败:', error);
     }
 }
 
 async function applyFilters() {
-    state.filters.status = document.getElementById('filterStatus')?.value || '';
-    state.filters.priority = document.getElementById('filterPriority')?.value || '';
-    state.filters.batchId = document.getElementById('filterBatch')?.value || '';
-    state.filters.search = document.getElementById('filterSearch')?.value || '';
     state.currentPage = 1;
     await loadTasks();
 }
 
+// 改造：新的预览导入函数（不显示toast，由调用方决定）
 async function handlePreviewImport() {
-    const startTime = document.getElementById('importStartTime')?.value;
-    const endTime = document.getElementById('importEndTime')?.value;
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
     
     if (!startTime || !endTime) {
-        showToast('请选择时间范围', 'warning');
-        return;
+        return null;
     }
     
     try {
-        const btn = document.getElementById('btnPreview');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="loading dark"></span> 预览中...';
-        
-        const result = await previewExtraction(
-            startTime.replace('T', ' ') + ':00',
-            endTime.replace('T', ' ') + ':59'
-        );
-        
-        showToast(`可导入: Trace ${result.trace_count || 0} 条, Node ${result.node_count || 0} 条`, 'success');
-        
-        document.getElementById('previewResult').innerHTML = `
-            <div style="padding:12px; background:#F0F7FF; border-radius:6px; margin-top:12px; font-size:12px;">
-                <strong>预览结果:</strong><br>
-                Trace记录: ${result.trace_count || 0} 条<br>
-                Node记录: ${result.node_count || 0} 条<br>
-                预估总量: ${result.estimated_total || 0} 条
-            </div>
-        `;
+        const previewData = await fetchPendingPreview();
+        if (previewData) {
+            renderPendingPreview(previewData);
+        }
+        return previewData;
     } catch (error) {
-        showToast('预览失败: ' + error.message, 'error');
-    } finally {
-        const btn = document.getElementById('btnPreview');
-        btn.disabled = false;
-        btn.textContent = '预览';
+        console.error('预览失败:', error);
+        return null;
     }
 }
 
+// 改造：新的执行导入函数
 async function handleExecuteImport() {
-    const startTime = document.getElementById('importStartTime')?.value;
-    const endTime = document.getElementById('importEndTime')?.value;
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
     const includeSubNodes = document.getElementById('importIncludeSubNodes')?.checked !== false;
     const limit = parseInt(document.getElementById('importLimit')?.value) || 1000;
     
@@ -1145,16 +1097,22 @@ async function handleExecuteImport() {
         
         showToast(`导入完成: E2E ${result.e2e_count || 0} 条, 子任务 ${result.sub_task_count || 0} 条`, 'success');
         
+        // 刷新数据（不显示toast）
         state.currentPage = 1;
-        // 导入成功后，重新加载概览和任务列表
-        await Promise.all([loadOverview(), loadTasks()]);
+        await Promise.all([
+            loadTasks(),
+            loadImportedStats(),
+            handlePreviewImport()  // 只刷新数据，不显示toast
+        ]);
         
     } catch (error) {
         showToast('导入失败: ' + error.message, 'error');
     } finally {
         const btn = document.getElementById('btnImport');
+        if (btn) {
         btn.disabled = false;
-        btn.textContent = '导入';
+            btn.innerHTML = '🚀 开始导入';
+        }
     }
 }
 
@@ -1177,14 +1135,10 @@ async function handleSubmitAnnotation() {
         complexity: document.getElementById('complexity')?.value || '',
         should_add_to_kb: document.getElementById('shouldAddToKb')?.checked || false,
         annotation_notes: document.getElementById('annotationNotes')?.value || '',
-        caller: state.currentTask.caller || '',
-        callee: state.currentTask.callee || '',
-        caller_type: state.currentTask.caller_type || '',
-        callee_type: state.currentTask.callee_type || '',
     };
     
     if (!data.annotated_question || !data.annotated_answer) {
-        showToast('请填写标注后的问题和答案', 'warning');
+        showToast('请填写修正后的Input和Output', 'warning');
         return;
     }
     
@@ -1192,9 +1146,10 @@ async function handleSubmitAnnotation() {
         await submitAnnotation(data);
         showToast('标注提交成功', 'success');
         
+        // 刷新相关数据
         await openTaskDetail(state.currentTask.task_id);
         await loadTasks();
-        await loadOverview();
+        await loadImportedStats();
         
     } catch (error) {
         showToast('提交失败: ' + error.message, 'error');
@@ -1222,18 +1177,46 @@ async function handleReview(status) {
         
         await openTaskDetail(state.currentTask.task_id);
         await loadTasks();
-        await loadOverview();
+        await loadImportedStats();
         
     } catch (error) {
         showToast('审核失败: ' + error.message, 'error');
     }
 }
 
-function toggleImportPanel() {
-    const panel = document.getElementById('importPanel');
-    const icon = document.getElementById('importToggleIcon');
-    panel.classList.toggle('collapsed');
-    icon.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
+// 切换区域展开/收起
+function toggleSection(sectionName) {
+    const content = document.getElementById(`${sectionName}Content`);
+    const icon = document.getElementById(`${sectionName}ToggleIcon`);
+    
+    if (!content || !icon) return;
+    
+    content.classList.toggle('collapsed');
+    icon.textContent = content.classList.contains('collapsed') ? '▶' : '▼';
+    state.sidebarState[sectionName] = !content.classList.contains('collapsed');
+}
+
+// 全局刷新
+async function handleGlobalRefresh() {
+    const startTime = document.getElementById('filterStartTime')?.value;
+    const endTime = document.getElementById('filterEndTime')?.value;
+    
+    if (!startTime || !endTime) {
+        showToast('请先选择时间范围', 'warning');
+        return;
+    }
+    
+    try {
+        // 并行加载所有数据
+        await Promise.all([
+            handlePreviewImport(),
+            loadTasks(),
+            loadImportedStats()
+        ]);
+        showToast('数据刷新完成', 'success');
+    } catch (error) {
+        showToast('刷新失败: ' + error.message, 'error');
+    }
 }
 
 function switchRole(role) {
@@ -1374,7 +1357,7 @@ function initTableColumnResize() {
 // 初始化
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('QA Annotation Platform initialized (Fixed Edition)');
+    console.log('QA Annotation Platform initialized (New Layout Edition)');
     
     // 初始化侧边栏拖拽
     initSidebarResize();
@@ -1382,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化表格列宽拖拽
     initTableColumnResize();
     
-    // 设置导入面板的默认时间（今日0点到当前时间）
+    // 设置全局过滤的默认时间（今日0点到当前时间）
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     
@@ -1395,17 +1378,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
     
-    const startInput = document.getElementById('importStartTime');
-    const endInput = document.getElementById('importEndTime');
+    const startInput = document.getElementById('filterStartTime');
+    const endInput = document.getElementById('filterEndTime');
     if (startInput) startInput.value = formatForInput(todayStart);
     if (endInput) endInput.value = formatForInput(now);
     
-    // 进入页面自动加载数据（不含时间筛选，查询所有已导入数据）
+    // 添加时间变化监听器（自动触发预览）
+    if (startInput) {
+        startInput.addEventListener('change', debounce(handlePreviewImport, 500));
+    }
+    if (endInput) {
+        endInput.addEventListener('change', debounce(handlePreviewImport, 500));
+    }
+    
+    // 进入页面自动加载数据
     try {
         await Promise.all([
-            loadOverview(),
+            handlePreviewImport(),
             loadTasks(),
-            loadStats()
+            loadImportedStats()
         ]);
     } catch (error) {
         console.error('初始化加载失败:', error);

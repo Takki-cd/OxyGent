@@ -50,10 +50,19 @@ class TaskService:
         end_time: Optional[str] = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        include_children: bool = True,  # 改造：默认包含所有任务（不只查根任务）
     ) -> Dict[str, Any]:
         """
         查询任务列表
-        
+
+        改造说明：
+        默认返回所有任务（E2E + 子节点），
+        通过priority字段区分任务类型：
+        - priority=0: E2E端到端任务
+        - priority=1: User→Agent
+        - priority=2: Agent→Agent
+        - priority=3: Agent→Tool/LLM
+
         Args:
             page: 页码（从1开始）
             page_size: 每页大小
@@ -62,14 +71,15 @@ class TaskService:
             source_type: 数据源类型筛选
             assigned_to: 分配给谁
             parent_task_id: 父任务ID（用于查看子任务）
-            only_root: 只查询根任务（E2E任务，parent_task_id为空）
+            only_root: 只查询根任务（E2E任务，parent_task_id为空）- 保留兼容
             search_keyword: 搜索关键词
             batch_id: 批次ID筛选
             start_time: 创建时间筛选-开始时间
             end_time: 创建时间筛选-结束时间
             sort_by: 排序字段
             sort_order: 排序顺序
-            
+            include_children: 是否包含子任务（改造：默认True，查询所有任务）
+
         Returns:
             {
                 "total": int,
@@ -99,9 +109,10 @@ class TaskService:
         if batch_id:
             must_conditions.append({"term": {"batch_id": batch_id}})
         
-        # 只查询根任务（E2E）
+        # 改造：默认查询所有任务，不再默认只查根任务
+        # only_root参数保留用于兼容旧逻辑
         if only_root:
-            must_conditions.append({"term": {"parent_task_id": ""}})
+            must_conditions.append({"term": {"is_root": True}})
         
         # 时间范围筛选
         if start_time or end_time:

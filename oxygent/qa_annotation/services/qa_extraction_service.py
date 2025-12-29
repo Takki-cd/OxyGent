@@ -147,6 +147,15 @@ class QAExtractionService:
                         stats["skip_reasons"]["duplicate_memory"] += 1
                     else:
                         stats["skip_reasons"]["duplicate_es"] += 1
+                    # 即使E2E任务重复，也要提取子节点（llm/tool）
+                    if include_sub_nodes:
+                        sub_count = await self._extract_sub_nodes(
+                            trace_id=trace_id,
+                            parent_task_id="",  # 重复的E2E任务不保存，子节点独立
+                            batch_id=batch_id,
+                            stats=stats
+                        )
+                        stats["sub_task_count"] += sub_count
                     continue
                 
                 # 保存E2E任务
@@ -218,7 +227,14 @@ class QAExtractionService:
         batch_id: str,
         stats: dict
     ) -> int:
-        """提取trace下的子节点"""
+        """
+        提取trace下的子节点
+
+        改造说明：
+        子节点不再设置parent_task_id（独立为顶级任务），
+        而是通过trace_id建立关联关系用于后续追溯。
+        这样所有任务都可以在列表中直接展示input/output。
+        """
         query = {
             "query": {
                 "bool": {
@@ -234,32 +250,33 @@ class QAExtractionService:
             "size": 500,
             "sort": [{"create_time": {"order": "asc"}}]
         }
-        
+
         try:
             result = await self.es_client.search(self.node_index, query)
             nodes = [hit["_source"] for hit in result.get("hits", {}).get("hits", [])]
         except Exception as e:
             logger.warning(f"Query nodes error for trace {trace_id}: {e}")
             return 0
-        
+
         count = 0
         for node in nodes:
-            task = self._node_to_task(node, batch_id, parent_task_id)
+            # 改造：传递空parent_task_id，使子节点成为独立任务
+            task = self._node_to_task(node, batch_id, parent_task_id="")
             if task is None:
                 stats["skipped"] += 1
                 continue
-            
+
             # 去重（内存缓存 + ES）
             if await self._is_duplicate_full(task["qa_hash"]):
                 stats["skipped"] += 1
                 continue
-            
+
             try:
                 await self._save_task(task)
                 count += 1
             except Exception as e:
                 stats["errors"].append(f"Save sub task error: {e}")
-        
+
         return count
     
     def _trace_to_task(self, trace: dict, batch_id: str) -> Optional[dict]:
@@ -316,11 +333,12 @@ class QAExtractionService:
                 "source_node_id": "",
                 "source_group_id": trace.get("group_id", ""),
                 "call_chain": ["user", callee] if callee else [],
-                
-                # 层级关系 - E2E是顶层，没有parent
+
+                # 层级关系 - E2E任务标记
+                "is_root": True,  # 标记为根任务（端到端）
                 "parent_task_id": "",
-                
-                # 调用者与被调用者信息（新增）
+
+                # 调用者与被调用者信息
                 "caller": caller,
                 "callee": callee,
                 "caller_type": caller_type,
@@ -347,14 +365,25 @@ class QAExtractionService:
         except Exception as e:
             logger.warning(f"Parse trace error: {e}")
             return None
-    
+
     def _node_to_task(
         self,
         node: dict,
         batch_id: str,
-        parent_task_id: str
+        parent_task_id: str = ""  # 改造：默认为空，子节点独立存储
     ) -> Optional[dict]:
-        """将node记录转换为子任务"""
+        """
+        将node记录转换为子任务
+
+        改造说明：
+        子节点现在独立存储，不设置parent_task_id。
+        保留source_trace_id用于追溯属于哪个E2E对话。
+        每个节点的input和output作为独立的QA对展示。
+
+        简化处理（用户需求）：
+        - 对于llm/tool类型节点：直接把input的JSON作为question存储
+        - 对于agent类型节点：提取query字段作为question
+        """
         try:
             # 解析input
             input_str = node.get("input", "{}")
@@ -364,7 +393,15 @@ class QAExtractionService:
                 input_data = input_str or {}
             
             arguments = input_data.get("arguments", {})
-            question = arguments.get("query", "")
+            node_type = node.get("node_type", "")
+            
+            # 根据node_type提取question（简化处理）
+            if node_type in ["llm", "tool"]:
+                # llm/tool类型：直接把input的JSON字符串作为question
+                question = input_str if isinstance(input_str, str) else json.dumps(input_data)
+            else:
+                # agent类型：提取query字段
+                question = arguments.get("query", "")
             
             # 解析output
             output = node.get("output", "")
@@ -379,15 +416,15 @@ class QAExtractionService:
             if len(str(question)) < min_q:
                 return None
             
-            # 排除LLM和retrieve_tools
+            # 改造：不再排除LLM和tool，所有类型的节点都需要导入
             callee = node.get("callee", "")
             node_type = node.get("node_type", "")
             exclude_callees = self.collector_config.get(
-                "exclude_callees", ["retrieve_tools", "default_llm"]
+                "exclude_callees", ["retrieve_tools"]
             )
-            exclude_types = self.collector_config.get("exclude_callee_types", ["llm"])
             
-            if callee in exclude_callees or node_type in exclude_types:
+            # 只排除指定的callee名称，不再按node_type排除
+            if callee in exclude_callees:
                 return None
             
             # 获取caller/callee信息（新增）
@@ -395,19 +432,32 @@ class QAExtractionService:
             caller_type = node.get("caller_type", "")
             callee_type = node_type  # node_type就是callee_type
             
-            # 计算优先级和source_type
+            # 优先级计算（改造：新的优先级定义）
+            # P0: 端到端（E2E）- 已在trace处理
+            # P1: 子agent
+            # P2: llm
+            # P3: tool
+            # P4: 其他
             if caller == "user":
+                # 用户直接调用的agent
                 priority = 1
                 source_type = "user_agent"
             elif node_type == "agent":
-                priority = 2
+                # 子agent
+                priority = 1
                 source_type = "agent_agent"
             elif node_type == "llm":
-                priority = 3
+                # LLM调用
+                priority = 2
                 source_type = "agent_llm"
-            else:
+            elif node_type == "tool":
+                # Tool调用
                 priority = 3
                 source_type = "agent_tool"
+            else:
+                # 其他类型
+                priority = 4
+                source_type = "agent_other"
             
             # 过期时间
             expire_hours = self.task_config.get("expire_hours", 24)
@@ -549,48 +599,178 @@ class QAExtractionService:
         end_time: str,
         include_sub_nodes: bool = True,
         limit: int = 1000,
+        search_keyword: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """预览可提取的数据量"""
+        """
+        预览可提取的数据量（支持过滤条件，排除已导入）
+
+        改造说明：
+        支持按关键词过滤，并自动排除已导入的数据。
+        返回真正的待导入数量，而非原始trace数量。
+
+        Args:
+            start_time: 开始时间
+            end_time: 结束时间
+            include_sub_nodes: 是否包含子节点
+            limit: 最大预览数量
+            search_keyword: 搜索关键词（过滤question/answer）
+
+        Returns:
+            {
+                "trace_count": int,           # 时间范围内总trace数
+                "trace_imported": int,        # 已导入的trace数
+                "trace_pending": int,         # 待导入的trace数（去重后）
+                "node_count": int,            # 时间范围内总node数（不含user调用）
+                "node_imported": int,         # 已导入的node数
+                "node_pending": int,          # 待导入的node数（去重后）
+                "estimated_total": int,       # 预估总量
+            }
+        """
         stats = {
             "trace_count": 0,
+            "trace_imported": 0,
+            "trace_pending": 0,
             "node_count": 0,
+            "node_imported": 0,
+            "node_pending": 0,
             "estimated_total": 0,
         }
-        
-        # 统计trace
-        try:
-            query = {
-                "query": {
-                    "range": {"create_time": {"gte": start_time, "lte": end_time}}
-                },
-                "size": 0
+
+        # 构建时间范围查询
+        time_range = {"range": {"create_time": {"gte": start_time, "lte": end_time}}}
+
+        # 构建关键词过滤条件（如果有）
+        keyword_filter = {}
+        if search_keyword:
+            keyword_filter = {
+                "bool": {
+                    "should": [
+                        {"match": {"question": search_keyword}},
+                        {"match": {"answer": search_keyword}},
+                    ],
+                    "minimum_should_match": 1
+                }
             }
-            result = await self.es_client.search(self.trace_index, query)
-            stats["trace_count"] = result.get("hits", {}).get("total", {}).get("value", 0)
-        except Exception as e:
-            logger.warning(f"Count traces error: {e}")
-        
-        # 统计node
+
+        # 1. 查询时间范围内的trace记录
         try:
-            query = {
+            trace_query = {
                 "query": {
                     "bool": {
-                        "must": [
-                            {"range": {"create_time": {"gte": start_time, "lte": end_time}}},
-                            {"term": {"state": 3}},
-                        ],
-                        "must_not": [
-                            {"term": {"caller": "user"}}
-                        ]
+                        "must": [time_range]
                     }
                 },
                 "size": 0
             }
-            result = await self.es_client.search(self.node_index, query)
-            stats["node_count"] = result.get("hits", {}).get("total", {}).get("value", 0)
+            # 添加关键词过滤
+            if search_keyword:
+                trace_query["query"]["bool"]["must"].append(keyword_filter)
+
+            result = await self.es_client.search(self.trace_index, trace_query)
+            stats["trace_count"] = result.get("hits", {}).get("total", {}).get("value", 0)
         except Exception as e:
-            logger.warning(f"Count nodes error: {e}")
-        
-        stats["estimated_total"] = stats["trace_count"] + stats["node_count"]
-        
+            logger.warning(f"Count traces error: {e}")
+
+        # 2. 查询已导入的trace_id集合（用于去重）
+        try:
+            imported_trace_query = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"priority": 0}},  # E2E任务
+                        ]
+                    }
+                },
+                "size": 10000,
+                "_source": ["source_trace_id"]
+            }
+            # 添加时间范围过滤（只查询时间范围内的已导入数据）
+            if start_time or end_time:
+                imported_time_range = {}
+                if start_time:
+                    imported_time_range["gte"] = start_time
+                if end_time:
+                    imported_time_range["lte"] = end_time
+                imported_trace_query["query"]["bool"]["must"].append(
+                    {"range": {"created_at": imported_time_range}}
+                )
+            # 添加关键词过滤
+            if search_keyword:
+                imported_trace_query["query"]["bool"]["must"].append(keyword_filter)
+
+            imported_result = await self.es_client.search(self.task_index, imported_trace_query)
+            imported_trace_ids = set()
+            for hit in imported_result.get("hits", {}).get("hits", []):
+                trace_id = hit.get("_source", {}).get("source_trace_id")
+                if trace_id:
+                    imported_trace_ids.add(trace_id)
+
+            stats["trace_imported"] = len(imported_trace_ids)
+            stats["trace_pending"] = max(0, stats["trace_count"] - len(imported_trace_ids))
+        except Exception as e:
+            logger.warning(f"Query imported traces error: {e}")
+            stats["trace_imported"] = 0
+            stats["trace_pending"] = stats["trace_count"]
+
+        # 3. 查询时间范围内的node记录（不含user调用）
+        if include_sub_nodes:
+            try:
+                node_query = {
+                    "query": {
+                        "bool": {
+                            "must": [time_range],
+                            "must_not": [
+                                {"term": {"caller": "user"}}
+                            ]
+                        }
+                    },
+                    "size": 0
+                }
+                # 添加关键词过滤
+                if search_keyword:
+                    node_query["query"]["bool"]["must"].append(keyword_filter)
+
+                result = await self.es_client.search(self.node_index, node_query)
+                stats["node_count"] = result.get("hits", {}).get("total", {}).get("value", 0)
+            except Exception as e:
+                logger.warning(f"Count nodes error: {e}")
+
+            # 4. 查询已导入的node（用于去重）
+            try:
+                imported_node_query = {
+                    "query": {"match_all": {}},
+                    "size": 10000,
+                    "_source": ["qa_hash"]
+                }
+                # 添加时间范围过滤
+                if start_time or end_time:
+                    imported_node_time_range = {}
+                    if start_time:
+                        imported_node_time_range["gte"] = start_time
+                    if end_time:
+                        imported_node_time_range["lte"] = end_time
+                    imported_node_query["query"] = {
+                        "bool": {
+                            "must": [{"range": {"created_at": imported_node_time_range}}]
+                        }
+                    }
+                    # 添加关键词过滤
+                    if search_keyword:
+                        imported_node_query["query"]["bool"]["must"].append(keyword_filter)
+
+                imported_result = await self.es_client.search(self.task_index, imported_node_query)
+                imported_hashes = set()
+                for hit in imported_result.get("hits", {}).get("hits", []):
+                    qa_hash = hit.get("_source", {}).get("qa_hash")
+                    if qa_hash:
+                        imported_hashes.add(qa_hash)
+
+                # 统计子节点已导入数量（估算）
+                stats["node_imported"] = len(imported_hashes)
+                stats["node_pending"] = max(0, stats["node_count"] - stats["node_imported"])
+            except Exception as e:
+                logger.warning(f"Query imported nodes error: {e}")
+
+        stats["estimated_total"] = stats["trace_pending"] + stats["node_pending"]
+
         return stats

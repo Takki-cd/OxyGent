@@ -197,11 +197,13 @@ async def preview_extraction(
     end_time: str = Query(_DEFAULT_END_TIME, description="结束时间"),
     include_sub_nodes: bool = Query(True, description="是否包含子节点"),
     limit: int = Query(1000, description="最大预览数量"),
+    search: Optional[str] = Query(None, description="搜索关键词（过滤question/answer）"),
 ):
     """
-    预览可提取的数据量
-    
-    返回指定时间范围内可以提取的trace和node数量
+    预览可提取的数据量（支持过滤条件，排除已导入）
+
+    返回指定时间范围内可以提取的待导入数据量（排除已导入的数据）。
+    支持按关键词过滤。
     """
     try:
         service = get_qa_extraction_service()
@@ -211,6 +213,7 @@ async def preview_extraction(
             end_time=end_time,
             include_sub_nodes=include_sub_nodes,
             limit=limit,
+            search_keyword=search,
         )
         
         return WebResponse(data=result).to_dict()
