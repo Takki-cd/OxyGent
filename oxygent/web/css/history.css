@@ -127,8 +127,6 @@
 .filter-select:hover {
     border-color: #9ca3af;
 }
-    pointer-events: none;
-}
 
 .conversations-list {
     display: flex;
