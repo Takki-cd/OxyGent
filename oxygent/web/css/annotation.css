@@ -1,4 +1,4 @@
-/* QA标注平台样式 - 简洁风格 */
+/* QA标注平台样式 - Node Map风格 */
 
 html,
 body {
@@ -778,16 +778,256 @@ body {
     border-top: 1px solid #E8E8EB;
 }
 
-/* 子任务树（抽屉内） */
-.drawer-body .children-tree {
+/* ==================== Node Map 风格的任务树 ==================== */
+.task-tree-container {
     margin-top: 20px;
     background: #FAFAFA;
     border-radius: 8px;
     padding: 16px;
 }
 
-.drawer-body .tree-title {
+.task-tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #E8E8EB;
+}
+
+.task-tree-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.task-tree-tabs {
+    display: flex;
+    gap: 8px;
+}
+
+.task-tree-tab {
+    padding: 4px 12px;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background: #fff;
+    transition: all 0.2s;
+}
+
+.task-tree-tab.active {
+    background: #155EEF;
+    color: #fff;
+    border-color: #155EEF;
+}
+
+.task-tree-tab:hover:not(.active) {
+    border-color: #155EEF;
+}
+
+/* 流程图样式 */
+.flowchart-view {
+    min-height: 300px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #E8E8EB;
+    padding: 20px;
+    overflow: auto;
+}
+
+.flowchart-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.flowchart-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.flowchart-node-card {
+    padding: 10px 14px;
+    background: #fff;
+    border: 2px solid #E0E0E0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 140px;
+    text-align: center;
+}
+
+.flowchart-node-card:hover {
+    border-color: #155EEF;
+    box-shadow: 0 2px 8px rgba(21, 94, 239, 0.15);
+}
+
+.flowchart-node-card.active {
+    border-color: #155EEF;
+    background: #EEF2FF;
+}
+
+.flowchart-node-card.root {
+    border-color: #DC2626;
+    background: #FEE2E2;
+}
+
+.flowchart-node-card.root.active {
+    background: #FEE2E2;
+}
+
+.flowchart-node-card.agent {
+    border-color: #3B82F6;
+    background: #DBEAFE;
+}
+
+.flowchart-node-card.tool {
+    border-color: #10B981;
+    background: #D1FAE5;
+}
+
+.flowchart-node-card.llm {
+    border-color: #8B5CF6;
+    background: #EDE9FE;
+}
+
+.flowchart-node-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-bottom: 4px;
+}
+
+.flowchart-node-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.flowchart-node-type {
+    font-size: 10px;
+    color: #666;
+}
+
+.flowchart-arrow {
+    display: flex;
+    align-items: center;
+    color: #999;
+    font-size: 18px;
+}
+
+.flowchart-arrow svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* 任务详情卡片 */
+.task-detail-card {
+    padding: 12px;
+    background: #FAFAFA;
+    border-radius: 6px;
+    margin-top: 12px;
+    border: 1px solid #E8E8EB;
+}
+
+.task-detail-card.active {
+    border-color: #155EEF;
+    background: #EEF2FF;
+}
+
+.task-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.task-detail-title {
     font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.task-detail-content {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 时间线视图 */
+.timeline-view {
+    min-height: 300px;
+}
+
+.timeline-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F5;
+}
+
+.timeline-time {
+    width: 80px;
+    font-size: 11px;
+    color: #999;
+}
+
+.timeline-bar {
+    flex: 1;
+    height: 28px;
+    background: #F0F0F5;
+    border-radius: 4px;
+    position: relative;
+    margin: 0 16px;
+}
+
+.timeline-bar-item {
+    position: absolute;
+    height: 100%;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 11px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.timeline-bar-item:hover {
+    filter: brightness(1.1);
+}
+
+.timeline-bar-item.root { background: #DC2626; }
+.timeline-bar-item.agent { background: #3B82F6; }
+.timeline-bar-item.tool { background: #10B981; }
+.timeline-bar-item.llm { background: #8B5CF6; }
+
+.timeline-bar-item.active {
+    box-shadow: 0 0 0 2px #155EEF;
+}
+
+/* 子任务详情 */
+.child-task-section {
+    margin-top: 20px;
+    background: #FAFAFA;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.child-task-title {
+    font-size: 14px;
     font-weight: 600;
     color: #333;
     margin-bottom: 12px;
@@ -796,45 +1036,61 @@ body {
     gap: 8px;
 }
 
-.drawer-body .tree-item {
+.child-task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.child-task-item {
     padding: 10px 12px;
     background: #fff;
     border-radius: 6px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     border: 1px solid #E8E8EB;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
-.drawer-body .tree-item:hover {
+.child-task-item:hover {
     border-color: #155EEF;
 }
 
-.drawer-body .tree-item-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.child-task-item.active {
+    border-color: #155EEF;
+    background: #EEF2FF;
 }
 
-.drawer-body .tree-item-type {
+.child-task-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.child-task-item-type {
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 10px;
     font-weight: 500;
 }
 
-.drawer-body .tree-item-type.user_agent { background: #FEF3C7; color: #D97706; }
-.drawer-body .tree-item-type.agent_agent { background: #DBEAFE; color: #2563EB; }
-.drawer-body .tree-item-type.agent_tool { background: #E5E7EB; color: #6B7280; }
+.child-task-item-type.user_agent { background: #FEF3C7; color: #D97706; }
+.child-task-item-type.agent_agent { background: #DBEAFE; color: #2563EB; }
+.child-task-item-type.agent_tool { background: #E5E7EB; color: #6B7280; }
+.child-task-item-type.agent_llm { background: #EDE9FE; color: #7C3AED; }
 
-.drawer-body .tree-item-question {
+.child-task-item-status {
+    font-size: 10px;
+    margin-left: auto;
+}
+
+.child-task-item-question {
     font-size: 12px;
     color: #333;
-    max-width: 200px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* 响应式 */
@@ -951,3 +1207,14 @@ body {
     pointer-events: none;
     z-index: 100;
 }
+
+/* Agent头像样式 */
+.agent-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+

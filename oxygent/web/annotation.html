@@ -9,7 +9,7 @@
     <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
     <title>QA标注平台 - OxyGent</title>
     <link rel="stylesheet" href="./css/style.css?v=1">
-    <link rel="stylesheet" href="./css/annotation.css?v=3">
+    <link rel="stylesheet" href="./css/annotation.css?v=4">
 </head>
 <body>
 <div class="annotation-wrapper">
@@ -100,12 +100,12 @@
                     </select>
                     <select class="filter-select-full" id="filterPriority" onchange="applyFilters()">
                         <option value="">全部优先级</option>
-                        <option value="0">P0-E2E</option>
+                        <option value="0">P0-根任务</option>
                         <option value="1">P1-User</option>
                         <option value="2">P2-Agent</option>
                         <option value="3">P3-Tool</option>
                     </select>
-                    <input type="text" class="filter-input" id="filterSearch" placeholder="搜索问题..." oninput="debounce(applyFilters, 500)()">
+                    <input type="text" class="filter-input" id="filterSearch" placeholder="搜索问题或Agent..." oninput="debounce(applyFilters, 500)()">
                     <select class="filter-select-full" id="filterBatch" onchange="applyFilters()">
                         <option value="">全部批次</option>
                         <!-- 由JS渲染 -->
@@ -117,7 +117,7 @@
         <!-- 主内容区 - QA列表 -->
         <section class="annotation-main">
             <div class="main-header">
-                <h2 class="main-title">QA数据列表</h2>
+                <h2 class="main-title">P0根任务列表</h2>
                 <div class="main-actions">
                     <button class="btn btn-secondary btn-small" onclick="loadTasks()">
                         刷新
@@ -133,9 +133,8 @@
                             <th data-column="id" style="width: 100px;">ID</th>
                             <th data-column="priority" style="width: 80px;">优先级</th>
                             <th data-column="status" style="width: 90px;">状态</th>
-                            <th data-column="source" style="width: 110px;">来源</th>
+                            <th data-column="source" style="width: 150px;">来源</th>
                             <th data-column="question">问题</th>
-                            <th data-column="answer">答案摘要</th>
                             <th data-column="time" style="width: 140px;">时间</th>
                             <th data-column="action" style="width: 80px;">操作</th>
                         </tr>
@@ -147,7 +146,7 @@
                 
                 <div class="empty-state" id="emptyState">
                     <img src="./image/empty.svg" alt="">
-                    <p>暂无任务数据，请先导入数据</p>
+                    <p>暂无P0根任务数据，请先导入数据</p>
                 </div>
             </div>
 
@@ -178,6 +177,6 @@
     </div>
 </aside>
 
-<script src="./js/annotation.js?v=3"></script>
+<script src="./js/annotation.js?v=4"></script>
 </body>
 </html>

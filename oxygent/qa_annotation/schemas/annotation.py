@@ -37,6 +37,12 @@ class QAAnnotation:
     annotation_id: str
     task_id: str
     
+    # 调用者与被调用者信息（新增）
+    caller: str = ""              # 调用者名称
+    callee: str = ""              # 被调用者名称
+    caller_type: str = ""         # 调用者类型: user/agent/tool/llm
+    callee_type: str = ""         # 被调用者类型: agent/tool/llm
+    
     # 标注内容
     annotated_question: str = ""
     annotated_answer: str = ""
@@ -83,6 +89,12 @@ QA_ANNOTATION_MAPPING = {
             "annotation_id": {"type": "keyword"},
             "task_id": {"type": "keyword"},
             
+            # 调用者与被调用者信息（新增）
+            "caller": {"type": "keyword"},
+            "callee": {"type": "keyword"},
+            "caller_type": {"type": "keyword"},
+            "callee_type": {"type": "keyword"},
+            
             # 标注内容
             "annotated_question": {"type": "text", "analyzer": "ik_max_word"},
             "annotated_answer": {"type": "text", "analyzer": "ik_max_word"},
@@ -120,4 +132,3 @@ QA_ANNOTATION_MAPPING = {
         "number_of_replicas": 0
     }
 }
-

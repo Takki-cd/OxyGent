@@ -291,6 +291,12 @@ class QAExtractionService:
             expire_hours = self.task_config.get("expire_hours", 24)
             expire_at = (datetime.now() + timedelta(hours=expire_hours)).strftime("%Y-%m-%d %H:%M:%S")
             
+            # 获取caller/callee信息
+            caller = trace.get("caller", "user")
+            callee = trace.get("callee", "")
+            caller_type = trace.get("caller_category", "user")
+            callee_type = trace.get("node_type", "agent")
+            
             task_id = generate_uuid()
             qa_hash = get_md5(f"{question}:{answer}")
             
@@ -298,36 +304,42 @@ class QAExtractionService:
                 "task_id": task_id,
                 "qa_id": generate_uuid(),
                 "batch_id": batch_id,
-                
+
                 # QA内容
                 "question": str(question),
                 "answer": answer,
                 "qa_hash": qa_hash,
-                
+
                 # 来源追溯
                 "source_type": "e2e",
                 "source_trace_id": trace.get("trace_id", ""),
                 "source_node_id": "",
                 "source_group_id": trace.get("group_id", ""),
-                "call_chain": ["user", trace.get("callee", "")],
+                "call_chain": ["user", callee] if callee else [],
                 
                 # 层级关系 - E2E是顶层，没有parent
                 "parent_task_id": "",
                 
+                # 调用者与被调用者信息（新增）
+                "caller": caller,
+                "callee": callee,
+                "caller_type": caller_type,
+                "callee_type": callee_type,
+
                 # 优先级
                 "priority": 0,  # P0
                 "category": "",
                 "tags": [],
-                
+
                 # 状态
                 "status": QATaskStatus.PENDING.value,
                 "stage": QATaskStage.PENDING.value,
-                
+
                 # 分配
                 "assigned_to": "",
                 "assigned_at": "",
                 "expire_at": expire_at,
-                
+
                 # 时间
                 "created_at": trace.get("create_time", get_format_time()),
                 "updated_at": get_format_time(),
@@ -378,14 +390,21 @@ class QAExtractionService:
             if callee in exclude_callees or node_type in exclude_types:
                 return None
             
-            # 计算优先级和source_type
+            # 获取caller/callee信息（新增）
             caller = node.get("caller", "")
+            caller_type = node.get("caller_type", "")
+            callee_type = node_type  # node_type就是callee_type
+            
+            # 计算优先级和source_type
             if caller == "user":
                 priority = 1
                 source_type = "user_agent"
             elif node_type == "agent":
                 priority = 2
                 source_type = "agent_agent"
+            elif node_type == "llm":
+                priority = 3
+                source_type = "agent_llm"
             else:
                 priority = 3
                 source_type = "agent_tool"
@@ -401,36 +420,42 @@ class QAExtractionService:
                 "task_id": task_id,
                 "qa_id": generate_uuid(),
                 "batch_id": batch_id,
-                
+
                 # QA内容
                 "question": str(question),
                 "answer": answer,
                 "qa_hash": qa_hash,
-                
+
                 # 来源追溯
                 "source_type": source_type,
                 "source_trace_id": node.get("trace_id", ""),
                 "source_node_id": node.get("node_id", ""),
                 "source_group_id": node.get("group_id", ""),
                 "call_chain": node.get("call_stack", []),
-                
+
                 # 层级关系 - 指向E2E父任务
                 "parent_task_id": parent_task_id,
                 
+                # 调用者与被调用者信息（新增）
+                "caller": caller,
+                "callee": callee,
+                "caller_type": caller_type,
+                "callee_type": callee_type,
+
                 # 优先级
                 "priority": priority,
                 "category": "",
                 "tags": [],
-                
+
                 # 状态
                 "status": QATaskStatus.PENDING.value,
                 "stage": QATaskStage.PENDING.value,
-                
+
                 # 分配
                 "assigned_to": "",
                 "assigned_at": "",
                 "expire_at": expire_at,
-                
+
                 # 时间
                 "created_at": node.get("create_time", get_format_time()),
                 "updated_at": get_format_time(),
@@ -569,4 +594,3 @@ class QAExtractionService:
         stats["estimated_total"] = stats["trace_count"] + stats["node_count"]
         
         return stats
-

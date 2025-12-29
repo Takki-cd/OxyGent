@@ -1,5 +1,5 @@
 /**
- * QA标注平台 - 前端逻辑（简洁风格版 - 支持列宽拖拽）
+ * QA标注平台 - 前端逻辑（Node Map风格版 - 支持caller/callee字段）
  */
 
 // ============================================================================
@@ -13,7 +13,7 @@ const state = {
         role: 'annotator'
     },
     
-    // 任务列表
+    // 任务列表（只显示P0根任务）
     tasks: [],
     totalTasks: 0,
     totalPages: 1,
@@ -28,7 +28,6 @@ const state = {
     filters: {
         status: '',
         priority: '',
-        sourceType: '',
         batchId: '',
         search: ''
     },
@@ -45,8 +44,32 @@ const state = {
     batches: [],
     
     // 当前查看的子任务
-    currentChildTask: null
+    currentChildTask: null,
+    
+    // Node Map视图状态
+    nodeMapView: 'flowchart', // 'flowchart' or 'timeline'
+    currentFlowchartNode: null
 };
+
+// Agent头像映射（复用index.html的配色）
+const agentImgMap = [
+    {bgColor: '#FEEAD4', imgUrl: './image/agents/agent_0.png'},
+    {bgColor: '#E4FBCC', imgUrl: './image/agents/agent_1.png'},
+    {bgColor: '#D3F8DF', imgUrl: './image/agents/agent_2.png'},
+    {bgColor: '#E0F2FE', imgUrl: './image/agents/agent_3.png'},
+    {bgColor: '#E0EAFF', imgUrl: './image/agents/agent_4.png'},
+    {bgColor: '#EFF1F5', imgUrl: './image/agents/agent_5.png'},
+    {bgColor: '#FBE8FF', imgUrl: './image/agents/agent_6.png'},
+    {bgColor: '#FBE7F6', imgUrl: './image/agents/agent_7.png'},
+    {bgColor: '#FEF7C4', imgUrl: './image/agents/agent_8.png'},
+    {bgColor: '#E6F4D7', imgUrl: './image/agents/agent_9.png'},
+    {bgColor: '#D5F5F6', imgUrl: './image/agents/agent_10.png'},
+    {bgColor: '#D2E9FF', imgUrl: './image/agents/agent_11.png'},
+    {bgColor: '#D1DFFF', imgUrl: './image/agents/agent_12.png'},
+    {bgColor: '#D5D9EB', imgUrl: './image/agents/agent_13.png'},
+    {bgColor: '#EBE9FE', imgUrl: './image/agents/agent_14.png'},
+    {bgColor: '#FFE4E8', imgUrl: './image/agents/agent_15.png'},
+];
 
 // API基础路径
 const API_BASE = '/api/qa';
@@ -82,6 +105,33 @@ function formatDateShort(dateStr) {
     }
 }
 
+function formatTime(dateStr) {
+    if (!dateStr) return '--:--';
+    try {
+        const d = new Date(dateStr.replace(' ', 'T'));
+        return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+    } catch {
+        return dateStr;
+    }
+}
+
+function getAgentAvatar(agentName, size = 24) {
+    if (!agentName) return '';
+    const idx = Math.abs(hashCode(agentName)) % 16;
+    const cur = agentImgMap[idx];
+    return `<img src="${cur.imgUrl}" style="background-color: ${cur.bgColor}; width: ${size}px; height: ${size}px; border-radius: 50%;" class="agent-avatar" alt="${agentName}">`;
+}
+
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash;
+}
+
 function truncate(str, len = 50) {
     if (!str) return '';
     return str.length > len ? str.substring(0, len) + '...' : str;
@@ -115,14 +165,79 @@ function getStatusClass(status) {
     return status;
 }
 
-function getSourceTypeLabel(sourceType) {
-    const labels = {
-        'e2e': '端到端',
-        'user_agent': '用户→Agent',
-        'agent_agent': 'Agent→Agent',
-        'agent_tool': 'Agent→Tool'
-    };
-    return labels[sourceType] || sourceType;
+// 获取Agent名称（优先使用callee字段，如果没有则从source_type推断）
+function getAgentName(task) {
+    // 优先使用callee字段
+    if (task.callee && task.callee.trim() !== '') {
+        return task.callee;
+    }
+    
+    // 根据source_type推断
+    const sourceType = task.source_type;
+    if (sourceType === 'e2e' || sourceType === 'user_agent') {
+        return 'User → Agent';
+    } else if (sourceType === 'agent_agent') {
+        return task.caller || 'Agent → Agent';
+    } else if (sourceType === 'agent_tool') {
+        return task.caller ? `${task.caller} → Tool` : 'Agent → Tool';
+    } else if (sourceType === 'agent_llm') {
+        return task.caller ? `${task.caller} → LLM` : 'Agent → LLM';
+    }
+    
+    return task.callee || task.caller || 'Unknown';
+}
+
+// 获取显示的来源文本（使用caller/callee字段）
+function getSourceDisplay(task) {
+    const caller = task.caller || '';
+    const callee = task.callee || '';
+    const sourceType = task.source_type;
+    
+    // 优先使用caller/callee字段
+    if (caller && callee) {
+        return `${caller} → ${callee}`;
+    }
+    
+    // 如果只有callee
+    if (callee) {
+        if (sourceType === 'e2e' || sourceType === 'user_agent') {
+            return `User → ${callee}`;
+        } else if (sourceType === 'agent_agent') {
+            return `Agent → ${callee}`;
+        } else if (sourceType === 'agent_tool') {
+            return `Tool: ${callee}`;
+        } else if (sourceType === 'agent_llm') {
+            return `LLM: ${callee}`;
+        }
+        return callee;
+    }
+    
+    // 如果只有caller
+    if (caller) {
+        return `${caller} → ?`;
+    }
+    
+    // 回退到旧逻辑
+    if (sourceType === 'e2e' || sourceType === 'user_agent') {
+        return 'User → Agent';
+    } else if (sourceType === 'agent_agent') {
+        return 'Agent → Agent';
+    } else if (sourceType === 'agent_tool') {
+        return 'Tool';
+    } else if (sourceType === 'agent_llm') {
+        return 'LLM';
+    }
+    
+    return 'Unknown';
+}
+
+// 获取节点类型样式
+function getNodeTypeClass(sourceType) {
+    if (sourceType === 'e2e' || sourceType === 'user_agent') return 'agent';
+    if (sourceType === 'agent_agent') return 'agent';
+    if (sourceType === 'agent_tool') return 'tool';
+    if (sourceType === 'agent_llm') return 'llm';
+    return 'agent';
 }
 
 function getTaskIdShort(taskId) {
@@ -156,15 +271,13 @@ async function apiRequest(endpoint, options = {}) {
 async function fetchTasks(page = 1, pageSize = 15) {
     const params = new URLSearchParams({
         page: page,
-        page_size: pageSize
+        page_size: pageSize,
+        priority: 0  // 只获取P0根任务
     });
     
     // 确保筛选条件被正确传递
     if (state.filters.status && state.filters.status !== '') {
         params.append('status', state.filters.status);
-    }
-    if (state.filters.priority !== '' && state.filters.priority !== undefined && state.filters.priority !== null) {
-        params.append('priority', state.filters.priority);
     }
     if (state.filters.batchId && state.filters.batchId !== '') {
         params.append('batch_id', state.filters.batchId);
@@ -173,7 +286,7 @@ async function fetchTasks(page = 1, pageSize = 15) {
         params.append('search', state.filters.search.trim());
     }
     
-    console.log('Fetching tasks with params:', params.toString());
+    console.log('Fetching P0 tasks with params:', params.toString());
     return apiRequest(`/tasks?${params}`);
 }
 
@@ -306,9 +419,8 @@ function renderQATable() {
             <td class="task-id">${getTaskIdShort(task.task_id)}</td>
             <td><span class="qa-priority ${getPriorityClass(task.priority)}">${getPriorityLabel(task.priority)}</span></td>
             <td><span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span></td>
-            <td><span class="qa-source">${getSourceTypeLabel(task.source_type)}</span></td>
+            <td><span class="qa-source" title="${getSourceDisplay(task)}">${getSourceDisplay(task)}</span></td>
             <td class="qa-question" title="${task.question || ''}">${task.question || ''}</td>
-            <td class="qa-answer" title="${task.answer || ''}">${task.answer || ''}</td>
             <td class="qa-time">${formatDateShort(task.created_at)}</td>
             <td class="qa-action">
                 <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); openTaskDetail('${task.task_id}')">
@@ -340,6 +452,173 @@ function renderPagination() {
     `;
 }
 
+// ============================================================================
+// Node Map 渲染
+// ============================================================================
+
+// 渲染任务树（Node Map风格）
+function renderTaskTree() {
+    const tree = state.currentTaskTree;
+    if (!tree || !tree.root) return '';
+    
+    const children = tree.children || [];
+    
+    return `
+        <div class="task-tree-container">
+            <div class="task-tree-header">
+                <div class="task-tree-title">
+                    📊 调用链路视图 (${children.length} 个子任务)
+                </div>
+                <div class="task-tree-tabs">
+                    <div class="task-tree-tab ${state.nodeMapView === 'flowchart' ? 'active' : ''}" 
+                         onclick="switchNodeMapView('flowchart')">
+                        流程图
+                    </div>
+                    <div class="task-tree-tab ${state.nodeMapView === 'timeline' ? 'active' : ''}" 
+                         onclick="switchNodeMapView('timeline')">
+                        时间线
+                    </div>
+                </div>
+            </div>
+            
+            ${state.nodeMapView === 'flowchart' ? renderFlowchartView(tree) : renderTimelineView(tree)}
+        </div>
+    `;
+}
+
+// 渲染流程图视图
+function renderFlowchartView(tree) {
+    const root = tree.root;
+    const children = tree.children || [];
+    
+    // 构建节点列表：根节点 + 子节点
+    const nodes = [
+        { ...root, isRoot: true },
+        ...children
+    ];
+    
+    return `
+        <div class="flowchart-view">
+            <div class="flowchart-container">
+                ${nodes.map((node, index) => `
+                    <div class="flowchart-node">
+                        <div class="flowchart-node-card ${node.isRoot ? 'root' : getNodeTypeClass(node.source_type)} ${state.currentFlowchartNode === node.task_id ? 'active' : ''}"
+                             onclick="selectFlowchartNode('${node.task_id}')"
+                             title="点击查看详情：${getSourceDisplay(node)}">
+                            ${getAgentAvatar(getAgentName(node), 24)}
+                            <div class="flowchart-node-name">${getAgentName(node)}</div>
+                            <div class="flowchart-node-type">${getSourceDisplay(node)}</div>
+                        </div>
+                        ${index < nodes.length - 1 ? `
+                            <div class="flowchart-arrow">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                                </svg>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            
+            ${state.currentFlowchartNode ? renderFlowchartTaskDetail() : ''}
+        </div>
+    `;
+}
+
+// 渲染时间线视图
+function renderTimelineView(tree) {
+    const root = tree.root;
+    const children = tree.children || [];
+    
+    // 合并所有节点
+    const allNodes = [root, ...children];
+    
+    // 计算时间范围
+    const times = allNodes.map(n => new Date(n.created_at.replace(' ', 'T')).getTime());
+    const minTime = Math.min(...times);
+    const maxTime = Math.max(...times);
+    const timeRange = maxTime - minTime || 1;
+    
+    return `
+        <div class="flowchart-view timeline-view">
+            ${allNodes.map(node => {
+                const nodeTime = new Date(node.created_at.replace(' ', 'T')).getTime();
+                const leftPercent = ((nodeTime - minTime) / timeRange) * 100;
+                const width = Math.max(15, Math.min(40, 100 / allNodes.length));
+                
+                return `
+                    <div class="timeline-row">
+                        <div class="timeline-time">${formatTime(node.created_at)}</div>
+                        <div class="timeline-bar">
+                            <div class="timeline-bar-item ${node.isRoot ? 'root' : getNodeTypeClass(node.source_type)} ${state.currentFlowchartNode === node.task_id ? 'active' : ''}"
+                                 style="left: ${leftPercent}%; width: ${width}%;"
+                                 onclick="selectFlowchartNode('${node.task_id}')"
+                                 title="${getAgentName(node)} - ${getSourceDisplay(node)}">
+                                ${getAgentName(node)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+            
+            ${state.currentFlowchartNode ? renderFlowchartTaskDetail() : ''}
+        </div>
+    `;
+}
+
+// 选择流程图节点
+function selectFlowchartNode(taskId) {
+    state.currentFlowchartNode = taskId;
+    
+    // 如果是当前任务，直接显示
+    if (state.currentTask && state.currentTask.task_id === taskId) {
+        renderDrawerBody();
+        return;
+    }
+    
+    // 否则加载子任务详情
+    viewChildTask(taskId);
+}
+
+// 渲染流程图中选中的任务详情
+function renderFlowchartTaskDetail() {
+    const taskId = state.currentFlowchartNode;
+    if (!taskId) return '';
+    
+    // 查找任务
+    let task = null;
+    if (state.currentTask && state.currentTask.task_id === taskId) {
+        task = state.currentTask;
+    } else {
+        task = state.currentChildTask;
+    }
+    
+    if (!task) return '';
+    
+    return `
+        <div class="task-detail-card ${state.currentTask?.task_id === task.task_id ? 'active' : ''}">
+            <div class="task-detail-header">
+                <span class="qa-priority ${getPriorityClass(task.priority)}">${getPriorityLabel(task.priority)}</span>
+                <span class="task-detail-title">${getAgentName(task)}</span>
+                <span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span>
+            </div>
+            <div class="task-detail-content">
+                <strong>问题：</strong>${task.question || '(无)'}
+            </div>
+            <div class="task-detail-content" style="margin-top: 8px;">
+                <strong>答案：</strong>${task.answer || '(无)'}
+            </div>
+        </div>
+    `;
+}
+
+// 切换Node Map视图
+function switchNodeMapView(view) {
+    state.nodeMapView = view;
+    state.currentFlowchartNode = null;
+    renderDrawerBody();
+}
+
 // 渲染抽屉内容
 function renderDrawerBody() {
     const container = document.getElementById('drawerBody');
@@ -348,37 +627,44 @@ function renderDrawerBody() {
     const task = state.currentTask;
     const tree = state.currentTaskTree;
     const isReviewer = state.currentUser.role === 'reviewer' || state.currentUser.role === 'admin';
+    const children = tree && tree.children ? tree.children : [];
     
     container.innerHTML = `
-        <!-- 任务信息 -->
+        <!-- 任务基本信息 -->
         <div class="qa-section">
             <div class="qa-label">
                 <span>任务信息</span>
                 <span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span>
             </div>
-            <div style="display:flex; gap:16px; font-size:12px; color:#666; margin-top:8px;">
-                <span>ID: ${task.task_id}</span>
-                <span>来源: ${getSourceTypeLabel(task.source_type)}</span>
-                <span>优先级: ${getPriorityLabel(task.priority)}</span>
+            <div style="display:flex; gap:16px; font-size:12px; color:#666; margin-top:8px; flex-wrap: wrap;">
+                <span>${getAgentAvatar(getAgentName(task), 20)}<strong>${getAgentName(task)}</strong></span>
+                <span>来源: ${getSourceDisplay(task)}</span>
                 <span>创建: ${formatDate(task.created_at)}</span>
+            </div>
+            <!-- 新增字段显示 -->
+            <div style="display:flex; gap:16px; font-size:11px; color:#999; margin-top:8px;">
+                <span>caller: ${task.caller || '-'}</span>
+                <span>callee: ${task.callee || '-'}</span>
+                <span>caller_type: ${task.caller_type || '-'}</span>
+                <span>callee_type: ${task.callee_type || '-'}</span>
             </div>
         </div>
         
         <!-- 原始问题 -->
         <div class="qa-section">
-            <div class="qa-label">原始问题</div>
+            <div class="qa-label">❓ 原始问题</div>
             <div class="qa-content">${task.question || '(无)'}</div>
         </div>
         
         <!-- 原始答案 -->
         <div class="qa-section">
-            <div class="qa-label">原始答案</div>
+            <div class="qa-label">💬 原始答案</div>
             <div class="qa-content">${task.answer || '(无)'}</div>
         </div>
         
         <!-- 标注表单 -->
         <div class="annotation-form">
-            <div class="form-title">标注信息</div>
+            <div class="form-title">✏️ 标注信息</div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -460,41 +746,56 @@ function renderDrawerBody() {
             
             <div class="form-actions">
                 ${task.status === 'pending' || task.status === 'assigned' ? `
-                    <button class="btn btn-primary" onclick="handleSubmitAnnotation()">提交标注</button>
+                    <button class="btn btn-primary" onclick="handleSubmitAnnotation()">💾 提交标注</button>
                 ` : ''}
                 ${isReviewer && task.status === 'annotated' ? `
-                    <button class="btn btn-success" onclick="handleReview('approved')">审核通过</button>
-                    <button class="btn btn-danger" onclick="handleReview('rejected')">审核拒绝</button>
+                    <button class="btn btn-success" onclick="handleReview('approved')">✅ 审核通过</button>
+                    <button class="btn btn-danger" onclick="handleReview('rejected')">❌ 审核拒绝</button>
                 ` : ''}
             </div>
         </div>
         
-        <!-- 子任务树 -->
-        ${tree && tree.children && tree.children.length > 0 ? `
-            <div class="children-tree">
-                <div class="tree-title">关联子任务 (${tree.children.length})</div>
-                ${tree.children.map(child => `
-                    <div class="tree-item" onclick="viewChildTask('${child.task_id}')" title="点击查看详情">
-                        <div class="tree-item-left">
-                            <span class="tree-item-type ${child.source_type}">${getSourceTypeLabel(child.source_type)}</span>
-                            <span class="tree-item-question">${truncate(child.question, 30)}</span>
+        <!-- Node Map 风格的任务树 -->
+        ${children.length > 0 ? renderTaskTree() : ''}
+        
+        <!-- 子任务列表（备用视图） -->
+        ${children.length > 0 ? `
+            <div class="child-task-section">
+                <div class="child-task-title">📋 子任务详情列表</div>
+                <div class="child-task-list">
+                    ${children.map(child => `
+                        <div class="child-task-item ${state.currentChildTask?.task_id === child.task_id ? 'active' : ''}" 
+                             onclick="viewChildTask('${child.task_id}')">
+                            <div class="child-task-item-header">
+                                <span class="child-task-item-type ${child.source_type}">${getSourceDisplay(child)}</span>
+                                <span class="child-task-item-status">
+                                    <span class="qa-status ${getStatusClass(child.status)}">${getStatusLabel(child.status)}</span>
+                                </span>
+                            </div>
+                            <div class="child-task-item-question">${child.question || '(无)'}</div>
                         </div>
-                        <span class="qa-status ${getStatusClass(child.status)}">${getStatusLabel(child.status)}</span>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
             </div>
         ` : ''}
         
-        <!-- 子任务详情 -->
-        ${state.currentChildTask ? `
+        <!-- 当前查看的子任务详情 -->
+        ${state.currentChildTask && state.currentChildTask.task_id !== task.task_id ? `
             <div class="qa-section" style="background: #FFF9E6; margin-top: 16px;">
                 <div class="qa-label">
-                    <span>子任务详情</span>
+                    <span>📋 子任务详情</span>
                     <button class="btn btn-small btn-secondary" onclick="closeChildTaskDetail()">关闭</button>
                 </div>
                 <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                    <div><strong>问题:</strong> ${state.currentChildTask.question || '(无)'}</div>
-                    <div style="margin-top: 8px;"><strong>答案:</strong> ${state.currentChildTask.answer || '(无)'}</div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>来源：</strong>${getAgentAvatar(getAgentName(state.currentChildTask), 16)}${getSourceDisplay(state.currentChildTask)}
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>caller:</strong> ${state.currentChildTask.caller || '-'} | 
+                        <strong>callee:</strong> ${state.currentChildTask.callee || '-'}
+                    </div>
+                    <div style="margin-bottom: 8px;"><strong>问题：</strong>${state.currentChildTask.question || '(无)'}</div>
+                    <div><strong>答案：</strong>${state.currentChildTask.answer || '(无)'}</div>
                 </div>
             </div>
         ` : ''}
@@ -512,6 +813,8 @@ async function openTaskDetail(taskId) {
         state.currentTask = tree.root;
         state.currentTaskTree = tree;
         state.currentChildTask = null;
+        state.currentFlowchartNode = taskId;
+        state.nodeMapView = 'flowchart';
         
         // 加载已有标注
         const annotation = await fetchAnnotationByTask(taskId);
@@ -542,6 +845,8 @@ function openDrawer() {
 function closeDrawer() {
     document.getElementById('drawerOverlay').classList.remove('show');
     document.getElementById('detailDrawer').classList.remove('show');
+    state.currentChildTask = null;
+    state.currentFlowchartNode = null;
 }
 
 // 查看子任务详情
@@ -550,6 +855,7 @@ async function viewChildTask(taskId) {
         const tree = await fetchTaskTree(taskId);
         if (tree && tree.root) {
             state.currentChildTask = tree.root;
+            state.currentFlowchartNode = taskId;
             renderDrawerBody();
         }
     } catch (error) {
@@ -560,6 +866,9 @@ async function viewChildTask(taskId) {
 // 关闭子任务详情
 function closeChildTaskDetail() {
     state.currentChildTask = null;
+    if (state.currentTask) {
+        state.currentFlowchartNode = state.currentTask.task_id;
+    }
     renderDrawerBody();
 }
 
@@ -716,7 +1025,13 @@ async function handleSubmitAnnotation() {
         intent: document.getElementById('intent')?.value || '',
         complexity: document.getElementById('complexity')?.value || '',
         should_add_to_kb: document.getElementById('shouldAddToKb')?.checked || false,
-        annotation_notes: document.getElementById('annotationNotes')?.value || ''
+        annotation_notes: document.getElementById('annotationNotes')?.value || '',
+        
+        // 新增字段：从任务中获取
+        caller: state.currentTask.caller || '',
+        callee: state.currentTask.callee || '',
+        caller_type: state.currentTask.caller_type || '',
+        callee_type: state.currentTask.callee_type || '',
     };
     
     if (!data.annotated_question || !data.annotated_answer) {
@@ -921,7 +1236,7 @@ function initTableColumnResize() {
 // 初始化
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('QA Annotation Platform initialized (Simple Style with Column Resize)');
+    console.log('QA Annotation Platform initialized (Node Map Style with Caller/Callee)');
     
     // 初始化侧边栏拖拽
     initSidebarResize();
