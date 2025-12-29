@@ -9,7 +9,7 @@
     <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
     <title>QA标注平台 - OxyGent</title>
     <link rel="stylesheet" href="./css/style.css?v=1">
-    <link rel="stylesheet" href="./css/annotation.css?v=4">
+    <link rel="stylesheet" href="./css/annotation.css?v=8">
 </head>
 <body>
 <div class="annotation-wrapper">
@@ -44,6 +44,18 @@
             <!-- 拖拽调整宽度 -->
             <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
             
+            <!-- 数据概览卡片 -->
+            <div class="sidebar-section overview-section">
+                <div class="sidebar-section-header">
+                    <span>数据概览</span>
+                    <span class="time-range-label" id="timeRangeLabel">今日</span>
+                </div>
+                <div class="overview-cards" id="overviewCards">
+                    <!-- 由JS渲染：待导入/已导入统计 -->
+                    <div class="overview-loading">加载中...</div>
+                </div>
+            </div>
+
             <!-- 导入面板 -->
             <div class="sidebar-section">
                 <div class="sidebar-section-header" onclick="toggleImportPanel()">
@@ -75,18 +87,19 @@
                 </div>
             </div>
 
-            <!-- 统计卡片 -->
+            <!-- 标注进度统计 -->
             <div class="sidebar-section">
                 <div class="sidebar-section-header">
-                    <span>数据统计</span>
+                    <span>标注进度</span>
                 </div>
-                <div class="stats-grid" id="statsPanel">
+                <div class="progress-section" id="progressSection">
                     <!-- 由JS渲染 -->
+                    <div class="progress-loading">加载中...</div>
                 </div>
             </div>
 
             <!-- 快速筛选 -->
-            <div class="sidebar-section">
+            <div class="sidebar-section filter-section-wrapper">
                 <div class="sidebar-section-header">
                     <span>快速筛选</span>
                 </div>
@@ -130,13 +143,14 @@
                 <table class="qa-table" id="qaTable">
                     <thead>
                         <tr>
-                            <th data-column="id" style="width: 100px;">ID</th>
-                            <th data-column="priority" style="width: 80px;">优先级</th>
-                            <th data-column="status" style="width: 90px;">状态</th>
-                            <th data-column="source" style="width: 150px;">来源</th>
-                            <th data-column="question">问题</th>
-                            <th data-column="time" style="width: 140px;">时间</th>
-                            <th data-column="action" style="width: 80px;">操作</th>
+                            <th data-column="id" style="width: 140px;">ID</th>
+                            <th data-column="priority" style="width: 60px;">优先级</th>
+                            <th data-column="status" style="width: 70px;">状态</th>
+                            <th data-column="source" style="width: 120px;">来源</th>
+                            <th data-column="question" style="width: 35%;">问题</th>
+                            <th data-column="answer" style="width: 25%;">答案</th>
+                            <th data-column="time" style="width: 100px;">时间</th>
+                            <th data-column="action" style="width: 60px;">操作</th>
                         </tr>
                     </thead>
                     <tbody id="qaTableBody">
@@ -177,6 +191,6 @@
     </div>
 </aside>
 
-<script src="./js/annotation.js?v=4"></script>
+<script src="./js/annotation.js?v=13"></script>
 </body>
 </html>

@@ -2,15 +2,14 @@
 """
 QA标注平台 - 任务管理服务
 
-提供任务的CRUD和查询功能，特别支持层级树形结构查询
+提供任务查询、统计、分配等功能
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Dict, Any, Optional, List
 
 from oxygent.config import Config
-from oxygent.utils.common_utils import get_format_time
-from oxygent.qa_annotation.schemas import QATaskStatus, QATaskStage
+from oxygent.utils.common_utils import generate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -19,26 +18,21 @@ class TaskService:
     """
     任务管理服务
     
-    提供:
-    - 任务列表查询（支持分页、筛选、排序）
-    - 任务详情获取
-    - **树形层级结构查询**（核心功能）
-    - 任务状态更新
-    - 任务分配
-    - 任务统计
+    核心功能：
+    1. 任务查询：支持分页、筛选、搜索
+    2. 任务统计：统计各状态任务数量
+    3. 任务分配：分配任务给标注者
+    4. 数据概览：统计待导入vs已导入数据
     """
     
     def __init__(self, es_client):
-        """
-        初始化任务服务
-        
-        Args:
-            es_client: ES客户端实例
-        """
         self.es_client = es_client
         self.app_name = Config.get_app_name()
+        
+        # 索引名称
         self.index_name = f"{self.app_name}_qa_task"
-        self.platform_config = Config.get_qa_platform_config()
+        self.trace_index = f"{self.app_name}_trace"
+        self.node_index = f"{self.app_name}_node"
     
     async def list_tasks(
         self,
@@ -52,6 +46,8 @@ class TaskService:
         only_root: bool = False,
         search_keyword: Optional[str] = None,
         batch_id: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> Dict[str, Any]:
@@ -69,6 +65,8 @@ class TaskService:
             only_root: 只查询根任务（E2E任务，parent_task_id为空）
             search_keyword: 搜索关键词
             batch_id: 批次ID筛选
+            start_time: 创建时间筛选-开始时间
+            end_time: 创建时间筛选-结束时间
             sort_by: 排序字段
             sort_order: 排序顺序
             
@@ -105,6 +103,15 @@ class TaskService:
         if only_root:
             must_conditions.append({"term": {"parent_task_id": ""}})
         
+        # 时间范围筛选
+        if start_time or end_time:
+            time_range = {}
+            if start_time:
+                time_range["gte"] = start_time
+            if end_time:
+                time_range["lte"] = end_time
+            must_conditions.append({"range": {"created_at": time_range}})
+        
         # 关键词搜索
         if search_keyword:
             must_conditions.append({
@@ -112,6 +119,8 @@ class TaskService:
                     "should": [
                         {"match": {"question": search_keyword}},
                         {"match": {"answer": search_keyword}},
+                        {"match": {"callee": search_keyword}},
+                        {"match": {"caller": search_keyword}},
                     ],
                     "minimum_should_match": 1
                 }
@@ -139,17 +148,64 @@ class TaskService:
                 "total": total,
                 "page": page,
                 "page_size": page_size,
-                "tasks": tasks,
+                "tasks": tasks
             }
         except Exception as e:
-            logger.error(f"Failed to list tasks: {e}")
-            return {
-                "total": 0,
-                "page": page,
-                "page_size": page_size,
-                "tasks": [],
-                "error": str(e),
+            logger.error(f"List tasks error: {e}")
+            return {"total": 0, "page": page, "page_size": page_size, "tasks": []}
+    
+    async def get_task(self, task_id: str) -> Optional[dict]:
+        """获取任务详情"""
+        try:
+            # 使用 _id 查询
+            query = {
+                "query": {"term": {"_id": task_id}},
+                "size": 1
             }
+            result = await self.es_client.search(self.index_name, query)
+            hits = result.get("hits", {}).get("hits", [])
+            if hits:
+                return hits[0]["_source"]
+            return None
+        except Exception as e:
+            logger.error(f"Get task error: {e}")
+            return None
+    
+    async def get_task_tree(self, task_id: str) -> Dict[str, Any]:
+        """
+        获取任务的完整树形结构
+        
+        如果传入的是子任务，返回该子任务所在E2E任务的完整树
+        如果传入的是E2E任务，返回该任务及其所有子任务
+        """
+        try:
+            # 先获取当前任务
+            current_task = await self.get_task(task_id)
+            if not current_task:
+                return {"root": None, "children": []}
+            
+            # 如果是子任务，找到根任务
+            root_task = current_task
+            if current_task.get("parent_task_id"):
+                root_task = await self.get_task(current_task["parent_task_id"])
+                if not root_task:
+                    return {"root": None, "children": []}
+            
+            # 获取根任务的所有子任务
+            children_result = await self.list_tasks(
+                parent_task_id=root_task["task_id"],
+                page=1,
+                page_size=100
+            )
+            children = children_result.get("tasks", [])
+            
+            return {
+                "root": root_task,
+                "children": children
+            }
+        except Exception as e:
+            logger.error(f"Get task tree error: {e}")
+            return {"root": None, "children": []}
     
     async def list_root_tasks_with_tree(
         self,
@@ -161,258 +217,207 @@ class TaskService:
         search_keyword: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        查询根任务列表，并附带子任务树
+        查询根任务列表（带子任务树）
         
-        这是前端展示层级结构的核心接口
-        
-        返回格式：
-        {
-            "total": 10,
-            "tasks": [
-                {
-                    "task_id": "xxx",
-                    "question": "用户问题",
-                    "answer": "最终回答",
-                    "source_type": "e2e",
-                    "priority": 0,
-                    "status": "pending",
-                    "children_count": 3,
-                    "children": [
-                        {
-                            "task_id": "yyy",
-                            "source_type": "agent_agent",
-                            "priority": 2,
-                            ...
-                        }
-                    ]
-                }
-            ]
-        }
+        返回E2E任务及其子任务的树形结构
         """
-        # 1. 查询根任务
-        root_result = await self.list_tasks(
-            page=page,
-            page_size=page_size,
-            status=status,
-            priority=priority,
-            batch_id=batch_id,
-            search_keyword=search_keyword,
-            only_root=True,
-            sort_by="created_at",
-            sort_order="desc"
-        )
-        
-        root_tasks = root_result.get("tasks", [])
-        
-        # 2. 为每个根任务查询子任务
-        for task in root_tasks:
-            task_id = task.get("task_id")
-            children = await self._get_children_tasks(task_id)
-            task["children"] = children
-            task["children_count"] = len(children)
-        
-        return {
-            "total": root_result.get("total", 0),
-            "page": page,
-            "page_size": page_size,
-            "tasks": root_tasks,
-        }
-    
-    async def _get_children_tasks(self, parent_task_id: str) -> List[dict]:
-        """获取指定任务的所有子任务"""
-        result = await self.list_tasks(
-            page=1,
-            page_size=100,
-            parent_task_id=parent_task_id,
-            sort_by="priority",
-            sort_order="asc"
-        )
-        return result.get("tasks", [])
-    
-    async def get_task(self, task_id: str) -> Optional[dict]:
-        """获取任务详情"""
         try:
-            result = await self.es_client.search(
-                self.index_name,
-                {"query": {"term": {"task_id": task_id}}, "size": 1}
+            # 查询根任务
+            result = await self.list_tasks(
+                page=page,
+                page_size=page_size,
+                status=status,
+                priority=priority,
+                batch_id=batch_id,
+                search_keyword=search_keyword,
+                only_root=True
             )
-            hits = result.get("hits", {}).get("hits", [])
-            if hits:
-                return hits[0]["_source"]
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get task {task_id}: {e}")
-            return None
-    
-    async def get_task_tree(self, task_id: str) -> Dict[str, Any]:
-        """
-        获取任务的完整树形结构
-        
-        如果task_id是根任务，返回它和所有子任务
-        如果task_id是子任务，先找到根任务，再返回完整树
-        
-        Args:
-            task_id: 任务ID
             
-        Returns:
-            {
-                "root": {...},  # 根任务
-                "children": [...],  # 子任务列表
-                "current_task_id": "xxx"  # 当前查询的任务ID
-            }
-        """
-        task = await self.get_task(task_id)
-        if not task:
-            return {"root": None, "children": [], "current_task_id": task_id}
-        
-        # 判断是否是根任务
-        parent_task_id = task.get("parent_task_id", "")
-        
-        if parent_task_id:
-            # 是子任务，找到根任务
-            root_task = await self.get_task(parent_task_id)
-            if root_task:
-                children = await self._get_children_tasks(parent_task_id)
-                return {
-                    "root": root_task,
-                    "children": children,
-                    "current_task_id": task_id
-                }
-            else:
-                # 找不到根任务，返回当前任务
-                return {
-                    "root": task,
-                    "children": [],
-                    "current_task_id": task_id
-                }
-        else:
-            # 是根任务
-            children = await self._get_children_tasks(task_id)
+            # 为每个根任务获取子任务
+            tasks_with_tree = []
+            for task in result.get("tasks", []):
+                task_id = task.get("task_id")
+                children_result = await self.list_tasks(
+                    parent_task_id=task_id,
+                    page=1,
+                    page_size=100
+                )
+                task["_children"] = children_result.get("tasks", [])
+                tasks_with_tree.append(task)
+            
             return {
-                "root": task,
-                "children": children,
-                "current_task_id": task_id
+                "total": result["total"],
+                "page": result["page"],
+                "page_size": result["page_size"],
+                "tasks": tasks_with_tree
             }
+        except Exception as e:
+            logger.error(f"List root tasks with tree error: {e}")
+            return {"total": 0, "page": page, "page_size": page_size, "tasks": []}
     
-    async def get_task_with_children(self, task_id: str) -> Dict[str, Any]:
-        """获取任务及其子任务（兼容旧接口）"""
-        tree = await self.get_task_tree(task_id)
-        return {
-            "task": tree.get("root"),
-            "children": tree.get("children", []),
-        }
-    
-    async def update_task_status(
-        self,
-        task_id: str,
-        status: str,
-        assigned_to: Optional[str] = None,
-        stage: Optional[str] = None,
-    ) -> bool:
-        """更新任务状态"""
-        update_data = {
-            "status": status,
-            "updated_at": get_format_time(),
-        }
-        
-        if assigned_to is not None:
-            update_data["assigned_to"] = assigned_to
-            if status == QATaskStatus.ASSIGNED.value:
-                update_data["assigned_at"] = get_format_time()
-        
-        if stage is not None:
-            update_data["stage"] = stage
-        
+    async def assign_task(self, task_id: str, assigned_to: str) -> bool:
+        """分配任务"""
         try:
+            task = await self.get_task(task_id)
+            if not task:
+                return False
+            
+            from oxygent.qa_annotation.schemas import QATaskStatus
+            from oxygent.utils.common_utils import get_format_time
+            
+            update_data = {
+                "assigned_to": assigned_to,
+                "assigned_at": get_format_time(),
+                "status": QATaskStatus.ASSIGNED.value,
+                "updated_at": get_format_time()
+            }
+            
             await self.es_client.update(
                 self.index_name,
                 doc_id=task_id,
                 body=update_data
             )
-            logger.info(f"Updated task {task_id} status to {status}")
             return True
         except Exception as e:
-            logger.error(f"Failed to update task {task_id}: {e}")
+            logger.error(f"Assign task error: {e}")
             return False
     
-    async def assign_task(self, task_id: str, assigned_to: str) -> bool:
-        """分配任务给标注者"""
-        return await self.update_task_status(
-            task_id=task_id,
-            status=QATaskStatus.ASSIGNED.value,
-            assigned_to=assigned_to
-        )
-    
-    async def get_pending_tasks_for_annotator(
+    async def get_overview(
         self,
-        annotator_id: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 10,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """获取标注者的待标注任务"""
-        if annotator_id:
-            return await self.list_tasks(
-                page=page,
-                page_size=page_size,
-                status=QATaskStatus.ASSIGNED.value,
-                assigned_to=annotator_id,
-                sort_by="priority",
-                sort_order="asc"
-            )
-        else:
-            return await self.list_tasks(
-                page=page,
-                page_size=page_size,
-                status=QATaskStatus.PENDING.value,
-                sort_by="priority",
-                sort_order="asc"
-            )
-    
-    async def get_stats(self) -> Dict[str, Any]:
-        """获取任务统计信息"""
+        """
+        获取数据概览
+        
+        统计所有已导入任务的状态：
+        - 待导入：尚未被导入的trace数量
+        - 已导入：所有已导入的任务数（E2E + 子任务）
+        - 标注进度：所有任务的标注状态统计
+        
+        注意：统计口径改为所有任务，便于标注员查看实际工作量
+        如果不传时间参数，则查询所有数据
+        """
         try:
-            query = {
-                "size": 0,
-                "aggs": {
-                    "by_status": {"terms": {"field": "status"}},
-                    "by_priority": {"terms": {"field": "priority"}},
-                    "by_source_type": {"terms": {"field": "source_type"}},
-                    "root_count": {
-                        "filter": {"term": {"parent_task_id": ""}}
+            # 1. 获取所有已导入任务的统计
+            imported_query = {
+                "query": {"match_all": {}},
+                "size": 10000,  # 获取所有已导入的任务
+                "_source": ["source_trace_id", "priority", "status"]
+            }
+            
+            # 时间范围筛选已导入的任务
+            if start_time or end_time:
+                time_range = {}
+                if start_time:
+                    time_range["gte"] = start_time
+                if end_time:
+                    time_range["lte"] = end_time
+                imported_query["query"] = {
+                    "bool": {
+                        "must": [{"range": {"created_at": time_range}}]
                     }
                 }
-            }
             
-            result = await self.es_client.search(self.index_name, query)
+            imported_result = await self.es_client.search(self.index_name, imported_query)
+            imported_hits = imported_result.get("hits", {}).get("hits", [])
             
-            total = result.get("hits", {}).get("total", {}).get("value", 0)
-            aggs = result.get("aggregations", {})
+            # 收集已导入的E2E trace_id（用于计算待导入）
+            imported_e2e_trace_ids = set()
+            # 统计所有任务的状态
+            all_status_counts = {}
+            # E2E任务计数
+            imported_e2e_count = 0
+            
+            for hit in imported_hits:
+                source = hit.get("_source", {})
+                trace_id = source.get("source_trace_id")
+                priority = source.get("priority", -1)
+                status = source.get("status", "pending")
+                
+                # 收集E2E任务的trace_id（用于计算待导入）
+                if priority == 0 and trace_id:
+                    imported_e2e_trace_ids.add(trace_id)
+                    imported_e2e_count += 1
+                
+                # 统计所有任务的状态
+                all_status_counts[status] = all_status_counts.get(status, 0) + 1
+            
+            # 2. 查询时间范围内的trace（待导入）
+            trace_query = {"query": {"match_all": {}}, "size": 0}
+            
+            if start_time or end_time:
+                time_range = {}
+                if start_time:
+                    time_range["gte"] = start_time
+                if end_time:
+                    time_range["lte"] = end_time
+                trace_query["query"] = {"range": {"create_time": time_range}}
+            
+            logger.info(f"Query trace with time range: start={start_time}, end={end_time}")
+            
+            trace_result = await self.es_client.search(self.trace_index, trace_query)
+            total_traces_in_range = trace_result.get("hits", {}).get("total", {}).get("value", 0)
+            
+            # 3. 计算待导入数量 = 时间范围内的trace总数 - 已导入的trace数
+            pending_import = total_traces_in_range - len(imported_e2e_trace_ids)
+            if pending_import < 0:
+                pending_import = 0
+            
+            logger.info(
+                f"Overview stats: total_traces={total_traces_in_range}, "
+                f"imported_e2e={len(imported_e2e_trace_ids)}, pending_import={pending_import}"
+            )
+            
+            # 4. 汇总统计（基于所有任务）
+            total_imported = len(imported_hits)  # 所有已导入任务数
+            pending_count = all_status_counts.get("pending", 0)
+            annotated_count = all_status_counts.get("annotated", 0)
+            approved_count = all_status_counts.get("approved", 0)
+            rejected_count = all_status_counts.get("rejected", 0)
+            
+            total_annotated = annotated_count + approved_count + rejected_count
             
             return {
-                "total": total,
-                "root_count": aggs.get("root_count", {}).get("doc_count", 0),
-                "by_status": {
-                    bucket["key"]: bucket["doc_count"]
-                    for bucket in aggs.get("by_status", {}).get("buckets", [])
-                },
-                "by_priority": {
-                    bucket["key"]: bucket["doc_count"]
-                    for bucket in aggs.get("by_priority", {}).get("buckets", [])
-                },
-                "by_source_type": {
-                    bucket["key"]: bucket["doc_count"]
-                    for bucket in aggs.get("by_source_type", {}).get("buckets", [])
-                },
+                # 待导入数据（基于E2E维度计算）
+                "trace_count": total_traces_in_range,  # 时间范围内总trace数
+                "total_pending_import": pending_import,  # 待导入数量
+                "total_traces_in_range": total_traces_in_range,
+                "already_imported": len(imported_e2e_trace_ids),  # 已导入的E2E数
+                
+                # 已导入数据（基于所有任务）
+                "imported_count": total_imported,  # 所有已导入任务数
+                "imported_e2e_count": imported_e2e_count,  # E2E任务数
+                
+                # 按状态统计（基于所有任务）
+                "pending_count": pending_count,
+                "annotated_count": annotated_count,
+                "approved_count": approved_count,
+                "rejected_count": rejected_count,
+                "status_counts": all_status_counts,
+                
+                # 进度计算（基于所有任务）
+                "total_tasks": total_imported,
+                "annotation_progress": round(total_annotated / total_imported * 100, 1) if total_imported > 0 else 0,
+                "approval_progress": round(approved_count / total_imported * 100, 1) if total_imported > 0 else 0,
             }
         except Exception as e:
-            logger.error(f"Failed to get stats: {e}")
+            logger.error(f"Get overview error: {e}")
             return {
-                "total": 0,
-                "root_count": 0,
-                "by_status": {},
-                "by_priority": {},
-                "by_source_type": {},
-                "error": str(e),
+                "trace_count": 0,
+                "total_pending_import": 0,
+                "total_traces_in_range": 0,
+                "already_imported": 0,
+                "imported_count": 0,
+                "imported_e2e_count": 0,
+                "pending_count": 0,
+                "annotated_count": 0,
+                "approved_count": 0,
+                "rejected_count": 0,
+                "status_counts": {},
+                "total_tasks": 0,
+                "annotation_progress": 0,
+                "approval_progress": 0,
             }
     
     async def get_batch_list(self) -> List[Dict[str, Any]]:
@@ -459,3 +464,15 @@ class TaskService:
         except Exception as e:
             logger.error(f"Failed to get batch list: {e}")
             return []
+
+
+# 服务单例
+_service_instance = None
+
+def get_task_service() -> TaskService:
+    """获取任务服务单例"""
+    global _service_instance
+    if _service_instance is None:
+        from oxygent.databases.db_es import get_es_client
+        _service_instance = TaskService(get_es_client())
+    return _service_instance

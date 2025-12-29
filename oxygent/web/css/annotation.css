@@ -1,4 +1,4 @@
-/* QA标注平台样式 - Node Map风格 */
+/* QA标注平台样式 - 恢复与index.html一致的简洁风格 */
 
 html,
 body {
@@ -17,54 +17,55 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background-color: lightGray;
+    background-color: #F5F6F8;
 }
 
-/* 顶部导航 */
+/* 顶部导航 - 简洁白色风格 */
 .annotation-header {
     width: 100%;
-    height: 65px;
+    height: 56px;
     background-color: #fff;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-direction: row;
-    padding: 10px 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 0 24px;
+    box-shadow: none;
+    border-bottom: 1px solid #E8E8EB;
     flex-shrink: 0;
 }
 
 .annotation-header .logo {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .annotation-header .logo img {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
 }
 
 .annotation-header .logo h1 {
-    font-size: 18px;
-    font-weight: bold;
+    font-size: 16px;
+    font-weight: 500;
     color: #333;
     margin: 0;
 }
 
 .header-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .user-role {
-    padding: 4px 12px;
+    padding: 4px 10px;
     background: #155EEF;
     color: #fff;
     border-radius: 4px;
@@ -89,9 +90,9 @@ body {
     position: relative;
 }
 
-/* 左侧边栏 */
+/* 左侧边栏 - 默认宽度加宽 */
 .annotation-sidebar {
-    width: 280px;
+    width: 340px;
     background: #fff;
     border-right: 1px solid #E8E8EB;
     display: flex;
@@ -107,7 +108,7 @@ body {
     right: -4px;
     top: 0;
     bottom: 0;
-    width: 8px;
+    width: 6px;
     background: transparent;
     cursor: col-resize;
     z-index: 10;
@@ -125,15 +126,9 @@ body {
 .sidebar-resize-handle::after {
     content: '';
     width: 2px;
-    height: 40px;
+    height: 30px;
     background: #ccc;
     border-radius: 1px;
-    transition: background 0.2s;
-}
-
-.sidebar-resize-handle:hover::after,
-.sidebar-resize-handle.active::after {
-    background: #fff;
 }
 
 .sidebar-section {
@@ -141,31 +136,234 @@ body {
 }
 
 .sidebar-section-header {
-    padding: 14px 16px;
-    background: #FAFAFA;
+    padding: 12px 16px;
+    background: #fff;
     font-size: 13px;
-    font-weight: bold;
+    font-weight: 500;
     color: #333;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    transition: background 0.2s;
+    border-bottom: 1px solid #F5F5F5;
 }
 
 .sidebar-section-header:hover {
-    background: #F0F0F5;
+    background: #FAFAFA;
 }
 
 .toggle-icon {
     font-size: 10px;
     color: #999;
-    transition: transform 0.3s;
+}
+
+/* 数据概览卡片 */
+.overview-section {
+    background: #FAFAFA;
+}
+
+.overview-section .sidebar-section-header {
+    background: #FAFAFA;
+}
+
+.time-range-label {
+    font-size: 11px;
+    padding: 2px 6px;
+    background: #E0E0E0;
+    border-radius: 4px;
+    color: #666;
+}
+
+.overview-cards {
+    padding: 12px 16px;
+    background: #FAFAFA;
+}
+
+.overview-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.overview-card {
+    flex: 1;
+    padding: 12px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid #E8E8EB;
+}
+
+.overview-card.pending {
+    background: #FFF7ED;
+    border-color: #FED7AA;
+}
+
+.overview-card.imported {
+    background: #F0F9FF;
+    border-color: #BAE6FD;
+}
+
+.overview-card-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.overview-card-label {
+    font-size: 11px;
+    color: #666;
+}
+
+.overview-card-sub {
+    font-size: 10px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.overview-progress {
+    background: #fff;
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid #E8E8EB;
+}
+
+.overview-progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.overview-progress-bar {
+    height: 6px;
+    background: #E5E7EB;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.overview-progress-fill {
+    height: 100%;
+    background: #155EEF;
+    border-radius: 3px;
+}
+
+.overview-progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #999;
+    margin-top: 6px;
+}
+
+.overview-loading {
+    text-align: center;
+    padding: 16px;
+    color: #999;
+    font-size: 12px;
+}
+
+/* 标注进度 */
+.progress-section {
+    padding: 12px 16px;
+    background: #FAFAFA;
+}
+
+.progress-stats-grid {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.progress-stat {
+    flex: 1;
+    padding: 10px 8px;
+    background: #fff;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid #E8E8EB;
+}
+
+.progress-stat-value {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.progress-stat-label {
+    font-size: 10px;
+    color: #999;
+}
+
+.progress-stat.pending .progress-stat-value { color: #F59E0B; }
+.progress-stat.annotated .progress-stat-value { color: #10B981; }
+.progress-stat.approved .progress-stat-value { color: #155EEF; }
+
+.progress-bar-container {
+    background: #fff;
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid #E8E8EB;
+}
+
+.progress-bar-label {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.progress-bar-track {
+    display: flex;
+    height: 8px;
+    background: #E5E7EB;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+}
+
+.progress-bar-fill.approved { background: #155EEF; }
+.progress-bar-fill.annotated { background: #10B981; }
+.progress-bar-fill.pending { background: #F59E0B; }
+
+.progress-bar-legend {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 10px;
+    color: #999;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.legend-dot.approved { background: #155EEF; }
+.legend-dot.annotated { background: #10B981; }
+.legend-dot.pending { background: #F59E0B; }
+
+.progress-loading {
+    text-align: center;
+    padding: 16px;
+    color: #999;
+    font-size: 12px;
 }
 
 /* 导入面板 */
 .import-panel {
-    padding: 16px;
+    padding: 12px 16px;
     background: #FAFAFA;
 }
 
@@ -177,7 +375,8 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    flex-wrap: nowrap;
 }
 
 .import-row label {
@@ -194,6 +393,7 @@ body {
     border-radius: 4px;
     font-size: 12px;
     background: #fff;
+    min-width: 0;
 }
 
 .import-input:focus {
@@ -202,8 +402,8 @@ body {
 }
 
 .import-input-small {
-    width: 80px;
-    padding: 6px 10px;
+    width: 70px;
+    padding: 6px 8px;
     border: 1px solid #E0E0E0;
     border-radius: 4px;
     font-size: 12px;
@@ -212,35 +412,29 @@ body {
 .import-actions {
     display: flex;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 10px;
 }
 
 /* 统计卡片 */
 .stats-grid {
-    padding: 16px;
+    padding: 12px 16px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
     background: #FAFAFA;
 }
 
 .stat-card {
     background: #fff;
-    border-radius: 8px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 10px;
     text-align: center;
     border: 1px solid #E8E8EB;
-    transition: all 0.2s;
-}
-
-.stat-card:hover {
-    border-color: #155EEF;
-    box-shadow: 0 2px 8px rgba(21, 94, 239, 0.1);
 }
 
 .stat-card .stat-value {
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 600;
     color: #155EEF;
     margin-bottom: 4px;
 }
@@ -253,17 +447,17 @@ body {
 .stat-card.total .stat-value { color: #155EEF; }
 .stat-card.pending .stat-value { color: #F59E0B; }
 .stat-card.annotated .stat-value { color: #10B981; }
-.stat-card.approved .stat-value { color: #3B82F6; }
+.stat-card.approved .stat-value { color: #155EEF; }
 
 /* 筛选区域 */
 .filter-section {
-    padding: 16px;
+    padding: 12px 16px;
     background: #FAFAFA;
 }
 
 .filter-select-full {
     width: 100%;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border: 1px solid #E0E0E0;
     border-radius: 4px;
     font-size: 12px;
@@ -279,7 +473,7 @@ body {
 
 .filter-input {
     width: 100%;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border: 1px solid #E0E0E0;
     border-radius: 4px;
     font-size: 12px;
@@ -311,15 +505,15 @@ body {
 }
 
 .main-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 500;
     color: #333;
     margin: 0;
 }
 
 .main-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
 }
 
 /* QA列表表格 */
@@ -335,16 +529,16 @@ body {
     background: #fff;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     table-layout: fixed;
 }
 
 .qa-table th {
     background: #FAFAFA;
-    padding: 14px 16px;
+    padding: 12px 14px;
     text-align: left;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     color: #666;
     border-bottom: 1px solid #E8E8EB;
     white-space: nowrap;
@@ -352,23 +546,6 @@ body {
     top: 0;
     z-index: 1;
     position: relative;
-}
-
-.qa-table th:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 25%;
-    height: 50%;
-    width: 2px;
-    background: #ddd;
-    cursor: col-resize;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.qa-table th:hover::after {
-    opacity: 1;
 }
 
 .qa-table th .resize-handle {
@@ -387,11 +564,11 @@ body {
 }
 
 .qa-table td {
-    padding: 14px 16px;
+    padding: 12px 14px;
     font-size: 13px;
     color: #333;
     border-bottom: 1px solid #F0F0F5;
-    line-height: 1.6;
+    line-height: 1.5;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -403,28 +580,25 @@ body {
 }
 
 .qa-table tbody tr:hover {
-    background: #F8F9FF;
+    background: #FAFAFA;
 }
 
 .qa-table tbody tr.active {
     background: #EEF2FF;
-    border-left: 3px solid #155EEF;
 }
 
 .qa-table .task-id {
     font-family: monospace;
     font-size: 12px;
     color: #666;
-    white-space: nowrap;
 }
 
 .qa-table .qa-priority {
     display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
+    font-weight: 500;
 }
 
 .qa-table .qa-priority.p0 { background: #FEE2E2; color: #DC2626; }
@@ -434,11 +608,10 @@ body {
 
 .qa-table .qa-status {
     display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     font-size: 11px;
     font-weight: 500;
-    white-space: nowrap;
 }
 
 .qa-table .qa-status.pending { background: #FEF3C7; color: #D97706; }
@@ -449,31 +622,20 @@ body {
 .qa-table .qa-source {
     font-size: 12px;
     color: #666;
-    padding: 3px 8px;
-    background: #F0F0F5;
-    border-radius: 4px;
-    white-space: nowrap;
-}
-
-.qa-table .qa-question {
-    max-width: none;
 }
 
 .qa-table .qa-answer {
-    color: #666;
     font-size: 12px;
-    max-width: none;
+    color: #999;
 }
 
 .qa-table .qa-time {
     font-size: 12px;
     color: #999;
-    white-space: nowrap;
 }
 
 .qa-table .qa-action {
     text-align: center;
-    white-space: nowrap;
 }
 
 .qa-table .qa-action .btn {
@@ -496,7 +658,7 @@ body {
 }
 
 .empty-state img {
-    width: 100px;
+    width: 80px;
     opacity: 0.4;
     margin-bottom: 16px;
 }
@@ -508,7 +670,7 @@ body {
 
 /* 分页 */
 .pagination {
-    padding: 16px 24px;
+    padding: 12px 24px;
     background: #fff;
     border-top: 1px solid #E8E8EB;
     display: flex;
@@ -524,7 +686,7 @@ body {
 
 .pagination-btns {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
@@ -535,7 +697,6 @@ body {
     border-radius: 4px;
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.2s;
 }
 
 .pagination-btn:hover:not(:disabled) {
@@ -554,18 +715,16 @@ body {
     color: #fff;
     border-radius: 4px;
     font-size: 12px;
-    font-weight: 500;
 }
 
 /* 按钮样式 */
 .btn {
-    padding: 8px 16px;
+    padding: 8px 14px;
     border: none;
     border-radius: 4px;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -590,7 +749,7 @@ body {
 }
 
 .btn-small {
-    padding: 6px 12px;
+    padding: 6px 10px;
     font-size: 12px;
 }
 
@@ -612,7 +771,7 @@ body {
     background: #DC2626;
 }
 
-/* 右侧抽屉 - 占据60%宽度 */
+/* 右侧抽屉 */
 .drawer-overlay {
     position: fixed;
     top: 0;
@@ -636,9 +795,10 @@ body {
     top: 0;
     right: -60%;
     width: 60%;
+    max-width: none;
     height: 100vh;
     background: #fff;
-    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
     transition: right 0.3s ease;
@@ -650,7 +810,7 @@ body {
 }
 
 .drawer-header {
-    padding: 16px 24px;
+    padding: 14px 20px;
     background: #155EEF;
     display: flex;
     justify-content: space-between;
@@ -659,22 +819,21 @@ body {
 }
 
 .drawer-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 500;
     color: #fff;
     margin: 0;
 }
 
 .drawer-close {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     background: rgba(255,255,255,0.2);
     border: none;
     border-radius: 4px;
     color: #fff;
-    font-size: 20px;
+    font-size: 18px;
     cursor: pointer;
-    transition: all 0.2s;
 }
 
 .drawer-close:hover {
@@ -684,56 +843,52 @@ body {
 .drawer-body {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 20px;
 }
 
 /* 抽屉内的QA展示区 */
 .drawer-body .qa-section {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     background: #FAFAFA;
-    border-radius: 8px;
-    padding: 16px;
+    border-radius: 6px;
+    padding: 14px;
 }
 
 .drawer-body .qa-label {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     color: #666;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .drawer-body .qa-content {
-    font-size: 14px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.6;
     color: #333;
     white-space: pre-wrap;
-    word-wrap: break-word;
 }
 
 /* 标注表单 */
 .drawer-body .annotation-form {
     background: #FAFAFA;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 16px;
 }
 
 .drawer-body .form-title {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     color: #333;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
     border-bottom: 1px solid #E8E8EB;
 }
 
 .drawer-body .form-row {
     display: flex;
-    gap: 16px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
 .drawer-body .form-group {
@@ -744,23 +899,23 @@ body {
     display: block;
     font-size: 12px;
     color: #666;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .drawer-body .form-group select,
 .drawer-body .form-group input,
 .drawer-body .form-group textarea {
     width: 100%;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border: 1px solid #E0E0E0;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 12px;
     background: #fff;
 }
 
 .drawer-body .form-group textarea {
     resize: vertical;
-    min-height: 80px;
+    min-height: 60px;
 }
 
 .drawer-body .form-group select:focus,
@@ -772,51 +927,47 @@ body {
 
 .drawer-body .form-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 20px;
-    padding-top: 16px;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 12px;
     border-top: 1px solid #E8E8EB;
 }
 
-/* ==================== Node Map 风格的任务树 ==================== */
+/* 任务树样式 */
 .task-tree-container {
-    margin-top: 20px;
+    margin-top: 16px;
     background: #FAFAFA;
-    border-radius: 8px;
-    padding: 16px;
+    border-radius: 6px;
+    padding: 14px;
 }
 
 .task-tree-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
     border-bottom: 1px solid #E8E8EB;
 }
 
 .task-tree-title {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     color: #333;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
 .task-tree-tabs {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .task-tree-tab {
-    padding: 4px 12px;
+    padding: 4px 10px;
     border: 1px solid #E0E0E0;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
     background: #fff;
-    transition: all 0.2s;
 }
 
 .task-tree-tab.active {
@@ -825,17 +976,13 @@ body {
     border-color: #155EEF;
 }
 
-.task-tree-tab:hover:not(.active) {
-    border-color: #155EEF;
-}
-
 /* 流程图样式 */
 .flowchart-view {
-    min-height: 300px;
+    min-height: 200px;
     background: #fff;
-    border-radius: 8px;
+    border-radius: 6px;
     border: 1px solid #E8E8EB;
-    padding: 20px;
+    padding: 16px;
     overflow: auto;
 }
 
@@ -849,23 +996,22 @@ body {
 .flowchart-node {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .flowchart-node-card {
-    padding: 10px 14px;
+    padding: 8px 12px;
     background: #fff;
-    border: 2px solid #E0E0E0;
-    border-radius: 8px;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
-    min-width: 140px;
+    min-width: 100px;
     text-align: center;
 }
 
 .flowchart-node-card:hover {
     border-color: #155EEF;
-    box-shadow: 0 2px 8px rgba(21, 94, 239, 0.15);
 }
 
 .flowchart-node-card.active {
@@ -875,10 +1021,6 @@ body {
 
 .flowchart-node-card.root {
     border-color: #DC2626;
-    background: #FEE2E2;
-}
-
-.flowchart-node-card.root.active {
     background: #FEE2E2;
 }
 
@@ -897,18 +1039,10 @@ body {
     background: #EDE9FE;
 }
 
-.flowchart-node-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    margin-bottom: 4px;
-}
-
 .flowchart-node-name {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     color: #333;
-    margin-bottom: 2px;
 }
 
 .flowchart-node-type {
@@ -917,23 +1051,20 @@ body {
 }
 
 .flowchart-arrow {
-    display: flex;
-    align-items: center;
     color: #999;
-    font-size: 18px;
 }
 
 .flowchart-arrow svg {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
 }
 
 /* 任务详情卡片 */
 .task-detail-card {
-    padding: 12px;
+    padding: 10px;
     background: #FAFAFA;
     border-radius: 6px;
-    margin-top: 12px;
+    margin-top: 10px;
     border: 1px solid #E8E8EB;
 }
 
@@ -945,13 +1076,13 @@ body {
 .task-detail-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 6px;
+    margin-bottom: 6px;
 }
 
 .task-detail-title {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     color: #333;
 }
 
@@ -959,37 +1090,33 @@ body {
     font-size: 12px;
     color: #666;
     line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
 /* 时间线视图 */
 .timeline-view {
-    min-height: 300px;
+    min-height: 200px;
 }
 
 .timeline-row {
     display: flex;
     align-items: center;
-    padding: 8px 0;
+    padding: 6px 0;
     border-bottom: 1px solid #F0F0F5;
 }
 
 .timeline-time {
-    width: 80px;
-    font-size: 11px;
+    width: 70px;
+    font-size: 10px;
     color: #999;
 }
 
 .timeline-bar {
     flex: 1;
-    height: 28px;
+    height: 24px;
     background: #F0F0F5;
     border-radius: 4px;
     position: relative;
-    margin: 0 16px;
+    margin: 0 12px;
 }
 
 .timeline-bar-item {
@@ -998,15 +1125,10 @@ body {
     border-radius: 4px;
     display: flex;
     align-items: center;
-    padding: 0 8px;
-    font-size: 11px;
+    padding: 0 6px;
+    font-size: 10px;
     color: #fff;
     cursor: pointer;
-    transition: all 0.2s;
-}
-
-.timeline-bar-item:hover {
-    filter: brightness(1.1);
 }
 
 .timeline-bar-item.root { background: #DC2626; }
@@ -1020,35 +1142,31 @@ body {
 
 /* 子任务详情 */
 .child-task-section {
-    margin-top: 20px;
+    margin-top: 16px;
     background: #FAFAFA;
-    border-radius: 8px;
-    padding: 16px;
+    border-radius: 6px;
+    padding: 14px;
 }
 
 .child-task-title {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     color: #333;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin-bottom: 10px;
 }
 
 .child-task-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .child-task-item {
-    padding: 10px 12px;
+    padding: 8px 10px;
     background: #fff;
     border-radius: 6px;
     border: 1px solid #E8E8EB;
     cursor: pointer;
-    transition: all 0.2s;
 }
 
 .child-task-item:hover {
@@ -1063,15 +1181,14 @@ body {
 .child-task-item-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-bottom: 4px;
 }
 
 .child-task-item-type {
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 3px;
     font-size: 10px;
-    font-weight: 500;
 }
 
 .child-task-item-type.user_agent { background: #FEF3C7; color: #D97706; }
@@ -1087,16 +1204,12 @@ body {
 .child-task-item-question {
     font-size: 12px;
     color: #333;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
 /* 响应式 */
 @media (max-width: 1200px) {
     .annotation-sidebar {
-        width: 240px;
+        width: 260px;
     }
 }
 
@@ -1107,7 +1220,7 @@ body {
     
     .annotation-sidebar {
         width: 100%;
-        max-height: 40vh;
+        max-height: 35vh;
         border-right: none;
         border-bottom: 1px solid #E8E8EB;
     }
@@ -1121,25 +1234,19 @@ body {
 /* Toast提示 */
 .toast {
     position: fixed;
-    top: 80px;
-    right: 24px;
-    padding: 12px 20px;
+    top: 70px;
+    right: 20px;
+    padding: 10px 16px;
     background: #333;
     color: #fff;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
     z-index: 2000;
-    animation: slideIn 0.3s ease;
 }
 
 .toast.success { background: #10B981; }
 .toast.error { background: #EF4444; }
 .toast.warning { background: #F59E0B; }
-
-@keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
 
 /* 加载状态 */
 .loading {
@@ -1163,34 +1270,32 @@ body {
 
 /* 复选框样式 */
 .form-checkbox {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
     font-size: 12px;
     color: #666;
     cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .form-checkbox input[type="checkbox"] {
     width: 14px;
     height: 14px;
     accent-color: #155EEF;
+    flex-shrink: 0;
 }
 
 /* 滚动条样式 */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
-    background-color: #f5f5f5;
 }
 
 ::-webkit-scrollbar-thumb {
-    border-radius: 8px;
-    background-color: rgba(0, 0, 0, 0.3);
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.4);
+    background: #ccc;
+    border-radius: 3px;
 }
 
 /* 列宽拖拽相关样式 */
@@ -1210,11 +1315,10 @@ body {
 
 /* Agent头像样式 */
 .agent-avatar {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     display: inline-block;
     vertical-align: middle;
     margin-right: 4px;
 }
-

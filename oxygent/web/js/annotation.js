@@ -1,5 +1,5 @@
 /**
- * QA标注平台 - 前端逻辑（Node Map风格版 - 支持caller/callee字段）
+ * QA标注平台 - 前端逻辑（数据概览版 - 修复时间筛选问题）
  */
 
 // ============================================================================
@@ -24,7 +24,7 @@ const state = {
     currentTask: null,
     currentTaskTree: null,
     
-    // 过滤条件
+    // 过滤条件（不包含时间筛选，默认查询所有）
     filters: {
         status: '',
         priority: '',
@@ -40,14 +40,27 @@ const state = {
         approved: 0
     },
     
-    // 批次列表
+    // 数据概览（不含时间筛选）
+    overview: {
+        traceCount: 0,
+        nodeCount: 0,
+        totalPendingImport: 0,
+        importedCount: 0,
+        importedE2eCount: 0,
+        pendingCount: 0,
+        annotatedCount: 0,
+        approvedCount: 0,
+        rejectedCount: 0
+    },
+    
+    // 批次列表（暂时不使用）
     batches: [],
     
     // 当前查看的子任务
     currentChildTask: null,
     
     // Node Map视图状态
-    nodeMapView: 'flowchart', // 'flowchart' or 'timeline'
+    nodeMapView: 'flowchart',
     currentFlowchartNode: null
 };
 
@@ -165,14 +178,12 @@ function getStatusClass(status) {
     return status;
 }
 
-// 获取Agent名称（优先使用callee字段，如果没有则从source_type推断）
+// 获取Agent名称
 function getAgentName(task) {
-    // 优先使用callee字段
     if (task.callee && task.callee.trim() !== '') {
         return task.callee;
     }
     
-    // 根据source_type推断
     const sourceType = task.source_type;
     if (sourceType === 'e2e' || sourceType === 'user_agent') {
         return 'User → Agent';
@@ -187,18 +198,16 @@ function getAgentName(task) {
     return task.callee || task.caller || 'Unknown';
 }
 
-// 获取显示的来源文本（使用caller/callee字段）
+// 获取显示的来源文本
 function getSourceDisplay(task) {
     const caller = task.caller || '';
     const callee = task.callee || '';
     const sourceType = task.source_type;
     
-    // 优先使用caller/callee字段
     if (caller && callee) {
         return `${caller} → ${callee}`;
     }
     
-    // 如果只有callee
     if (callee) {
         if (sourceType === 'e2e' || sourceType === 'user_agent') {
             return `User → ${callee}`;
@@ -212,12 +221,10 @@ function getSourceDisplay(task) {
         return callee;
     }
     
-    // 如果只有caller
     if (caller) {
         return `${caller} → ?`;
     }
     
-    // 回退到旧逻辑
     if (sourceType === 'e2e' || sourceType === 'user_agent') {
         return 'User → Agent';
     } else if (sourceType === 'agent_agent') {
@@ -231,7 +238,6 @@ function getSourceDisplay(task) {
     return 'Unknown';
 }
 
-// 获取节点类型样式
 function getNodeTypeClass(sourceType) {
     if (sourceType === 'e2e' || sourceType === 'user_agent') return 'agent';
     if (sourceType === 'agent_agent') return 'agent';
@@ -242,7 +248,23 @@ function getNodeTypeClass(sourceType) {
 
 function getTaskIdShort(taskId) {
     if (!taskId) return '-';
-    return taskId.substring(0, 8);
+    return taskId;
+}
+
+// 截断文本（用于答案列）
+function truncateText(str, maxLen = 30) {
+    if (!str) return '';
+    return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+}
+
+// 格式化数字
+function formatNumber(num) {
+    if (num >= 10000) {
+        return (num / 10000).toFixed(1) + 'w';
+    } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
 }
 
 // ============================================================================
@@ -268,6 +290,47 @@ async function apiRequest(endpoint, options = {}) {
     }
 }
 
+// 获取概览（使用导入面板的时间范围，如果没选择则使用默认24小时）
+async function fetchOverview() {
+    const startInput = document.getElementById('importStartTime');
+    const endInput = document.getElementById('importEndTime');
+    
+    let startTime, endTime;
+    
+    // 如果用户选择了时间范围，使用选择的值
+    if (startInput && startInput.value && endInput && endInput.value) {
+        // 转换为API格式
+        startTime = startInput.value.replace('T', ' ') + ':00';
+        endTime = endInput.value.replace('T', ' ') + ':59';
+    } else {
+        // 默认使用24小时前到现在
+        const now = new Date();
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        const formatForAPI = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        
+        startTime = formatForAPI(oneDayAgo);
+        endTime = formatForAPI(now);
+    }
+    
+    const params = new URLSearchParams({
+        start_time: startTime,
+        end_time: endTime
+    });
+    
+    console.log('Fetching overview with time range:', startTime, 'to', endTime);
+    
+    return apiRequest(`/overview?${params}`);
+}
+
 async function fetchTasks(page = 1, pageSize = 15) {
     const params = new URLSearchParams({
         page: page,
@@ -275,7 +338,7 @@ async function fetchTasks(page = 1, pageSize = 15) {
         priority: 0  // 只获取P0根任务
     });
     
-    // 确保筛选条件被正确传递
+    // 状态、批次、搜索筛选
     if (state.filters.status && state.filters.status !== '') {
         params.append('status', state.filters.status);
     }
@@ -286,7 +349,28 @@ async function fetchTasks(page = 1, pageSize = 15) {
         params.append('search', state.filters.search.trim());
     }
     
-    console.log('Fetching P0 tasks with params:', params.toString());
+    // 时间范围筛选（今日0点到当前时间）
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    
+    const formatForAPI = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+    
+    const startTime = formatForAPI(todayStart);
+    const endTime = formatForAPI(now);
+    
+    params.append('start_time', startTime);
+    params.append('end_time', endTime);
+    
+    console.log('Fetching tasks with time filter:', startTime, 'to', endTime);
+    
     return apiRequest(`/tasks?${params}`);
 }
 
@@ -298,8 +382,14 @@ async function fetchStats() {
     return apiRequest('/stats');
 }
 
+// 批次列表接口（暂时不使用）
 async function fetchBatches() {
-    return apiRequest('/batches');
+    try {
+        return await apiRequest('/batches');
+    } catch (error) {
+        console.log('批次列表接口不可用');
+        return { batches: [] };
+    }
 }
 
 async function submitAnnotation(data) {
@@ -330,14 +420,15 @@ async function reviewAnnotation(annotationId, reviewerId, reviewStatus, reviewCo
 }
 
 async function previewExtraction(startTime, endTime, includeSubNodes = true, limit = 1000) {
-    return apiRequest('/extract/preview', {
-        method: 'POST',
-        body: JSON.stringify({ 
-            start_time: startTime, 
-            end_time: endTime,
-            include_sub_nodes: includeSubNodes,
-            limit: limit
-        })
+    // 使用 GET 请求构建查询参数
+    const params = new URLSearchParams({
+        start_time: startTime,
+        end_time: endTime,
+        include_sub_nodes: includeSubNodes.toString(),
+        limit: limit.toString()
+    });
+    return apiRequest(`/extract/preview?${params}`, {
+        method: 'GET'
     });
 }
 
@@ -361,27 +452,104 @@ async function initIndices() {
 // 渲染函数
 // ============================================================================
 
-// 渲染统计面板
+// 渲染数据概览卡片（所有任务）
+function renderOverviewCards() {
+    const container = document.getElementById('overviewCards');
+    if (!container) return;
+    
+    const o = state.overview;
+    
+    // 全部导入任务的统计
+    const importedCount = o.imported_count || 0;
+    const e2eCount = o.imported_e2e_count || 0;
+    const pendingImport = o.total_pending_import || 0;
+    const totalTraces = o.total_traces_in_range || 0;
+    
+    container.innerHTML = `
+        <div class="overview-row">
+            <div class="overview-card pending">
+                <div class="overview-card-value">${formatNumber(pendingImport)}</div>
+                <div class="overview-card-label">待导入</div>
+                <div class="overview-card-sub">范围内共 ${formatNumber(totalTraces)} 条Trace</div>
+            </div>
+            <div class="overview-card imported">
+                <div class="overview-card-value">${formatNumber(importedCount)}</div>
+                <div class="overview-card-label">已导入任务</div>
+                <div class="overview-card-sub">E2E: ${formatNumber(e2eCount)}个</div>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染标注进度（基于所有任务）
+function renderProgressSection() {
+    const container = document.getElementById('progressSection');
+    if (!container) return;
+    
+    const o = state.overview;
+    // 使用所有任务的统计
+    const pendingCount = o.pending_count || 0;
+    const annotatedCount = o.annotated_count || 0;
+    const approvedCount = o.approved_count || 0;
+    const rejectedCount = o.rejected_count || 0;
+    const total = o.total_tasks || pendingCount + annotatedCount + approvedCount + rejectedCount;
+    
+    // 计算进度
+    const annotatedPercent = total > 0 ? Math.round((annotatedCount + approvedCount + rejectedCount) / total * 100) : 0;
+    const approvedPercent = total > 0 ? Math.round(approvedCount / total * 100) : 0;
+    
+    container.innerHTML = `
+        <div class="progress-stats-grid">
+            <div class="progress-stat pending">
+                <div class="progress-stat-value">${formatNumber(pendingCount)}</div>
+                <div class="progress-stat-label">待标注</div>
+            </div>
+            <div class="progress-stat annotated">
+                <div class="progress-stat-value">${formatNumber(annotatedCount)}</div>
+                <div class="progress-stat-label">已标注</div>
+            </div>
+            <div class="progress-stat approved">
+                <div class="progress-stat-value">${formatNumber(approvedCount)}</div>
+                <div class="progress-stat-label">已通过</div>
+            </div>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-label">标注进度 (全部: ${total}个任务)</div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill approved" style="width: ${approvedPercent}%"></div>
+                <div class="progress-bar-fill annotated" style="width: ${annotatedPercent - approvedPercent}%"></div>
+                <div class="progress-bar-fill pending" style="width: ${Math.max(0, 100 - annotatedPercent)}%"></div>
+            </div>
+            <div class="progress-bar-legend">
+                <span class="legend-item"><span class="legend-dot approved"></span>已通过 ${approvedPercent}%</span>
+                <span class="legend-item"><span class="legend-dot annotated"></span>已标注 ${annotatedPercent}%</span>
+                <span class="legend-item"><span class="legend-dot pending"></span>待标注 ${Math.max(0, 100 - annotatedPercent)}%</span>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染统计面板（保留旧接口兼容）
 function renderStats() {
     const panel = document.getElementById('statsPanel');
     if (!panel) return;
     
-    const { stats } = state;
+    const o = state.overview;
     panel.innerHTML = `
         <div class="stat-card total">
-            <div class="stat-value">${stats.total || 0}</div>
-            <div class="stat-label">总任务</div>
+            <div class="stat-value">${o.imported_e2e_count || 0}</div>
+            <div class="stat-label">总任务(E2E)</div>
         </div>
         <div class="stat-card pending">
-            <div class="stat-value">${stats.by_status?.pending || 0}</div>
+            <div class="stat-value">${o.pending_count || 0}</div>
             <div class="stat-label">待标注</div>
         </div>
         <div class="stat-card annotated">
-            <div class="stat-value">${stats.by_status?.annotated || 0}</div>
+            <div class="stat-value">${o.annotated_count || 0}</div>
             <div class="stat-label">已标注</div>
         </div>
         <div class="stat-card approved">
-            <div class="stat-value">${stats.by_status?.approved || 0}</div>
+            <div class="stat-value">${o.approved_count || 0}</div>
             <div class="stat-label">已通过</div>
         </div>
     `;
@@ -416,11 +584,12 @@ function renderQATable() {
     tbody.innerHTML = state.tasks.map(task => `
         <tr class="${state.currentTask?.task_id === task.task_id ? 'active' : ''}" 
             onclick="openTaskDetail('${task.task_id}')">
-            <td class="task-id">${getTaskIdShort(task.task_id)}</td>
+            <td class="task-id" title="${task.task_id}">${getTaskIdShort(task.task_id)}</td>
             <td><span class="qa-priority ${getPriorityClass(task.priority)}">${getPriorityLabel(task.priority)}</span></td>
             <td><span class="qa-status ${getStatusClass(task.status)}">${getStatusLabel(task.status)}</span></td>
-            <td><span class="qa-source" title="${getSourceDisplay(task)}">${getSourceDisplay(task)}</span></td>
+            <td class="qa-source" title="${getSourceDisplay(task)}">${getSourceDisplay(task)}</td>
             <td class="qa-question" title="${task.question || ''}">${task.question || ''}</td>
+            <td class="qa-answer" title="${task.answer || ''}">${truncateText(task.answer, 25)}</td>
             <td class="qa-time">${formatDateShort(task.created_at)}</td>
             <td class="qa-action">
                 <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); openTaskDetail('${task.task_id}')">
@@ -456,7 +625,6 @@ function renderPagination() {
 // Node Map 渲染
 // ============================================================================
 
-// 渲染任务树（Node Map风格）
 function renderTaskTree() {
     const tree = state.currentTaskTree;
     if (!tree || !tree.root) return '';
@@ -486,12 +654,10 @@ function renderTaskTree() {
     `;
 }
 
-// 渲染流程图视图
 function renderFlowchartView(tree) {
     const root = tree.root;
     const children = tree.children || [];
     
-    // 构建节点列表：根节点 + 子节点
     const nodes = [
         { ...root, isRoot: true },
         ...children
@@ -525,15 +691,12 @@ function renderFlowchartView(tree) {
     `;
 }
 
-// 渲染时间线视图
 function renderTimelineView(tree) {
     const root = tree.root;
     const children = tree.children || [];
     
-    // 合并所有节点
     const allNodes = [root, ...children];
     
-    // 计算时间范围
     const times = allNodes.map(n => new Date(n.created_at.replace(' ', 'T')).getTime());
     const minTime = Math.min(...times);
     const maxTime = Math.max(...times);
@@ -566,26 +729,21 @@ function renderTimelineView(tree) {
     `;
 }
 
-// 选择流程图节点
 function selectFlowchartNode(taskId) {
     state.currentFlowchartNode = taskId;
     
-    // 如果是当前任务，直接显示
     if (state.currentTask && state.currentTask.task_id === taskId) {
         renderDrawerBody();
         return;
     }
     
-    // 否则加载子任务详情
     viewChildTask(taskId);
 }
 
-// 渲染流程图中选中的任务详情
 function renderFlowchartTaskDetail() {
     const taskId = state.currentFlowchartNode;
     if (!taskId) return '';
     
-    // 查找任务
     let task = null;
     if (state.currentTask && state.currentTask.task_id === taskId) {
         task = state.currentTask;
@@ -612,7 +770,6 @@ function renderFlowchartTaskDetail() {
     `;
 }
 
-// 切换Node Map视图
 function switchNodeMapView(view) {
     state.nodeMapView = view;
     state.currentFlowchartNode = null;
@@ -630,7 +787,6 @@ function renderDrawerBody() {
     const children = tree && tree.children ? tree.children : [];
     
     container.innerHTML = `
-        <!-- 任务基本信息 -->
         <div class="qa-section">
             <div class="qa-label">
                 <span>任务信息</span>
@@ -641,7 +797,6 @@ function renderDrawerBody() {
                 <span>来源: ${getSourceDisplay(task)}</span>
                 <span>创建: ${formatDate(task.created_at)}</span>
             </div>
-            <!-- 新增字段显示 -->
             <div style="display:flex; gap:16px; font-size:11px; color:#999; margin-top:8px;">
                 <span>caller: ${task.caller || '-'}</span>
                 <span>callee: ${task.callee || '-'}</span>
@@ -650,19 +805,16 @@ function renderDrawerBody() {
             </div>
         </div>
         
-        <!-- 原始问题 -->
         <div class="qa-section">
             <div class="qa-label">❓ 原始问题</div>
             <div class="qa-content">${task.question || '(无)'}</div>
         </div>
         
-        <!-- 原始答案 -->
         <div class="qa-section">
             <div class="qa-label">💬 原始答案</div>
             <div class="qa-content">${task.answer || '(无)'}</div>
         </div>
         
-        <!-- 标注表单 -->
         <div class="annotation-form">
             <div class="form-title">✏️ 标注信息</div>
             
@@ -755,10 +907,8 @@ function renderDrawerBody() {
             </div>
         </div>
         
-        <!-- Node Map 风格的任务树 -->
         ${children.length > 0 ? renderTaskTree() : ''}
         
-        <!-- 子任务列表（备用视图） -->
         ${children.length > 0 ? `
             <div class="child-task-section">
                 <div class="child-task-title">📋 子任务详情列表</div>
@@ -779,7 +929,6 @@ function renderDrawerBody() {
             </div>
         ` : ''}
         
-        <!-- 当前查看的子任务详情 -->
         ${state.currentChildTask && state.currentChildTask.task_id !== task.task_id ? `
             <div class="qa-section" style="background: #FFF9E6; margin-top: 16px;">
                 <div class="qa-label">
@@ -806,7 +955,6 @@ function renderDrawerBody() {
 // 事件处理
 // ============================================================================
 
-// 打开任务详情抽屉
 async function openTaskDetail(taskId) {
     try {
         const tree = await fetchTaskTree(taskId);
@@ -816,7 +964,6 @@ async function openTaskDetail(taskId) {
         state.currentFlowchartNode = taskId;
         state.nodeMapView = 'flowchart';
         
-        // 加载已有标注
         const annotation = await fetchAnnotationByTask(taskId);
         if (annotation) {
             setTimeout(() => {
@@ -835,13 +982,11 @@ async function openTaskDetail(taskId) {
     }
 }
 
-// 打开抽屉
 function openDrawer() {
     document.getElementById('drawerOverlay').classList.add('show');
     document.getElementById('detailDrawer').classList.add('show');
 }
 
-// 关闭抽屉
 function closeDrawer() {
     document.getElementById('drawerOverlay').classList.remove('show');
     document.getElementById('detailDrawer').classList.remove('show');
@@ -849,7 +994,6 @@ function closeDrawer() {
     state.currentFlowchartNode = null;
 }
 
-// 查看子任务详情
 async function viewChildTask(taskId) {
     try {
         const tree = await fetchTaskTree(taskId);
@@ -863,7 +1007,6 @@ async function viewChildTask(taskId) {
     }
 }
 
-// 关闭子任务详情
 function closeChildTaskDetail() {
     state.currentChildTask = null;
     if (state.currentTask) {
@@ -872,14 +1015,12 @@ function closeChildTaskDetail() {
     renderDrawerBody();
 }
 
-// 翻页
 async function changePage(page) {
     if (page < 1 || page > state.totalPages) return;
     state.currentPage = page;
     await loadTasks();
 }
 
-// 加载任务列表
 async function loadTasks() {
     try {
         const result = await fetchTasks(state.currentPage, state.pageSize);
@@ -892,39 +1033,51 @@ async function loadTasks() {
     }
 }
 
-// 加载统计
+async function loadOverview() {
+    try {
+        const result = await fetchOverview();
+        console.log('Overview result:', result);
+        // 直接使用后端返回的字段名（下划线格式）
+        state.overview = result;
+        renderOverviewCards();
+        renderProgressSection();
+    } catch (error) {
+        console.error('加载概览失败:', error);
+        document.getElementById('overviewCards').innerHTML = '<div class="overview-loading">加载失败</div>';
+        document.getElementById('progressSection').innerHTML = '<div class="progress-loading">加载失败</div>';
+    }
+}
+
 async function loadStats() {
     try {
-        state.stats = await fetchStats();
+        const result = await fetchStats();
+        state.stats = result;
         renderStats();
     } catch (error) {
         console.error('加载统计失败:', error);
     }
 }
 
-// 加载批次
 async function loadBatches() {
     try {
         const result = await fetchBatches();
         state.batches = result.batches || [];
         renderBatchSelect();
     } catch (error) {
-        console.error('加载批次失败:', error);
+        console.log('批次列表加载失败:', error.message);
+        state.batches = [];
     }
 }
 
-// 应用筛选
 async function applyFilters() {
     state.filters.status = document.getElementById('filterStatus')?.value || '';
     state.filters.priority = document.getElementById('filterPriority')?.value || '';
     state.filters.batchId = document.getElementById('filterBatch')?.value || '';
     state.filters.search = document.getElementById('filterSearch')?.value || '';
     state.currentPage = 1;
-    console.log('Applying filters:', state.filters);
     await loadTasks();
 }
 
-// 预览导入
 async function handlePreviewImport() {
     const startTime = document.getElementById('importStartTime')?.value;
     const endTime = document.getElementById('importEndTime')?.value;
@@ -963,7 +1116,6 @@ async function handlePreviewImport() {
     }
 }
 
-// 执行导入
 async function handleExecuteImport() {
     const startTime = document.getElementById('importStartTime')?.value;
     const endTime = document.getElementById('importEndTime')?.value;
@@ -993,9 +1145,9 @@ async function handleExecuteImport() {
         
         showToast(`导入完成: E2E ${result.e2e_count || 0} 条, 子任务 ${result.sub_task_count || 0} 条`, 'success');
         
-        // 刷新数据
         state.currentPage = 1;
-        await Promise.all([loadTasks(), loadStats(), loadBatches()]);
+        // 导入成功后，重新加载概览和任务列表
+        await Promise.all([loadOverview(), loadTasks()]);
         
     } catch (error) {
         showToast('导入失败: ' + error.message, 'error');
@@ -1006,7 +1158,6 @@ async function handleExecuteImport() {
     }
 }
 
-// 提交标注
 async function handleSubmitAnnotation() {
     if (!state.currentTask) {
         showToast('请先选择任务', 'warning');
@@ -1026,8 +1177,6 @@ async function handleSubmitAnnotation() {
         complexity: document.getElementById('complexity')?.value || '',
         should_add_to_kb: document.getElementById('shouldAddToKb')?.checked || false,
         annotation_notes: document.getElementById('annotationNotes')?.value || '',
-        
-        // 新增字段：从任务中获取
         caller: state.currentTask.caller || '',
         callee: state.currentTask.callee || '',
         caller_type: state.currentTask.caller_type || '',
@@ -1043,17 +1192,15 @@ async function handleSubmitAnnotation() {
         await submitAnnotation(data);
         showToast('标注提交成功', 'success');
         
-        // 刷新数据
         await openTaskDetail(state.currentTask.task_id);
         await loadTasks();
-        await loadStats();
+        await loadOverview();
         
     } catch (error) {
         showToast('提交失败: ' + error.message, 'error');
     }
 }
 
-// 审核标注
 async function handleReview(status) {
     if (!state.currentTask) return;
     
@@ -1073,17 +1220,15 @@ async function handleReview(status) {
         await reviewAnnotation(annotation.annotation_id, state.currentUser.id, status, comment || '');
         showToast(status === 'approved' ? '审核通过' : '已拒绝', 'success');
         
-        // 刷新数据
         await openTaskDetail(state.currentTask.task_id);
         await loadTasks();
-        await loadStats();
+        await loadOverview();
         
     } catch (error) {
         showToast('审核失败: ' + error.message, 'error');
     }
 }
 
-// 切换导入面板
 function toggleImportPanel() {
     const panel = document.getElementById('importPanel');
     const icon = document.getElementById('importToggleIcon');
@@ -1091,20 +1236,17 @@ function toggleImportPanel() {
     icon.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
 }
 
-// 切换用户角色
 function switchRole(role) {
     state.currentUser.role = role;
     const labels = { annotator: '标注员', reviewer: '审核员', admin: '管理员' };
     document.getElementById('userRole').textContent = labels[role];
     showToast(`已切换为${labels[role]}角色`, 'info');
     
-    // 刷新详情（如果有）
     if (state.currentTask) {
         renderDrawerBody();
     }
 }
 
-// 初始化ES索引
 async function handleInitIndices() {
     if (!confirm('确定要初始化ES索引吗？')) return;
     
@@ -1170,14 +1312,12 @@ function initTableColumnResize() {
     let startWidth = 0;
     let resizeProxy = null;
     
-    // 创建resize代理元素
     resizeProxy = document.createElement('div');
     resizeProxy.className = 'resizing-proxy';
     resizeProxy.style.display = 'none';
     document.body.appendChild(resizeProxy);
     
     ths.forEach(th => {
-        // 创建拖拽把手
         const handle = document.createElement('div');
         handle.className = 'resize-handle';
         th.appendChild(handle);
@@ -1191,7 +1331,6 @@ function initTableColumnResize() {
             startX = e.clientX;
             startWidth = th.offsetWidth;
             
-            // 显示代理线
             const thRect = th.getBoundingClientRect();
             resizeProxy.style.left = thRect.right + 'px';
             resizeProxy.style.top = thRect.top + 'px';
@@ -1211,7 +1350,6 @@ function initTableColumnResize() {
         const newWidth = Math.max(60, startWidth + diffX);
         currentTh.style.width = newWidth + 'px';
         
-        // 更新代理线位置
         const thRect = currentTh.getBoundingClientRect();
         resizeProxy.style.left = thRect.right + 'px';
         resizeProxy.style.top = thRect.top + 'px';
@@ -1236,7 +1374,7 @@ function initTableColumnResize() {
 // 初始化
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('QA Annotation Platform initialized (Node Map Style with Caller/Callee)');
+    console.log('QA Annotation Platform initialized (Fixed Edition)');
     
     // 初始化侧边栏拖拽
     initSidebarResize();
@@ -1244,10 +1382,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化表格列宽拖拽
     initTableColumnResize();
     
-    // 设置默认时间范围
+    // 设置导入面板的默认时间（今日0点到当前时间）
     const now = new Date();
-    const hoursBefore = 3;
-    const hoursAgo = new Date(now.getTime() - hoursBefore * 60 * 60 * 1000);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     
     const formatForInput = (date) => {
         const year = date.getFullYear();
@@ -1260,15 +1397,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const startInput = document.getElementById('importStartTime');
     const endInput = document.getElementById('importEndTime');
-    if (startInput) startInput.value = formatForInput(hoursAgo);
+    if (startInput) startInput.value = formatForInput(todayStart);
     if (endInput) endInput.value = formatForInput(now);
     
-    // 加载数据
+    // 进入页面自动加载数据（不含时间筛选，查询所有已导入数据）
     try {
         await Promise.all([
+            loadOverview(),
             loadTasks(),
-            loadStats(),
-            loadBatches()
+            loadStats()
         ]);
     } catch (error) {
         console.error('初始化加载失败:', error);

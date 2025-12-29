@@ -50,8 +50,26 @@ def get_default_time_range():
         return start_time, end_time
 
 
+def get_today_time_range():
+    """获取今日时间范围（从今日凌晨0点到当前时间）"""
+    try:
+        import pytz
+        tz_name = Config.get_qa_timezone()
+        tz = pytz.timezone(tz_name)
+        now = datetime.now(tz)
+        # 今日凌晨0点
+        start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = now
+        return start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")
+    except ImportError:
+        now = datetime.now()
+        start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return start_time.strftime("%Y-%m-%d %H:%M:%S"), now.strftime("%Y-%m-%d %H:%M:%S")
+
+
 # 预先计算默认时间（应用启动时）
 _DEFAULT_START_TIME, _DEFAULT_END_TIME = get_default_time_range()
+_TODAY_START_TIME, _TODAY_END_TIME = get_today_time_range()
 
 
 # =============================================================================
@@ -111,7 +129,7 @@ class TaskStatusUpdateRequest(BaseModel):
 
 from .services import (
     set_service_clients,
-    get_extraction_service,
+    get_extraction_service as get_qa_extraction_service,
     get_task_service,
     get_annotation_service,
 )
@@ -136,24 +154,63 @@ def get_es_client():
 
 
 # =============================================================================
-# QA提取API（MVP核心）
+# 数据概览API（新增）
 # =============================================================================
 
-@qa_router.post("/extract/preview")
-async def preview_extraction(request: ExtractionRequest):
+@qa_router.get("/overview")
+async def get_overview(
+    start_time: Optional[str] = Query(None, description="开始时间"),
+    end_time: Optional[str] = Query(None, description="结束时间"),
+):
     """
-    预览可提取的QA数据量
+    获取数据概览
     
-    用于在执行提取前预估数据量
+    返回数据统计：
+    - 待导入：尚未被导入的trace数量
+    - 已导入：已导入的任务数
+    - 标注状态统计：待标注、已标注、已通过等
+    
+    用于前端展示数据概览卡片
+    如果不传时间参数，则查询所有数据
     """
     try:
-        service = get_extraction_service()
+        service = get_task_service()
+        
+        result = await service.get_overview(
+            start_time=start_time,
+            end_time=end_time,
+        )
+        
+        return WebResponse(data=result).to_dict()
+    except Exception as e:
+        logger.error(f"Get overview failed: {e}")
+        return WebResponse(code=500, message=str(e)).to_dict()
+
+
+# =============================================================================
+# 提取API
+# =============================================================================
+
+@qa_router.get("/extract/preview")
+async def preview_extraction(
+    start_time: str = Query(_DEFAULT_START_TIME, description="开始时间"),
+    end_time: str = Query(_DEFAULT_END_TIME, description="结束时间"),
+    include_sub_nodes: bool = Query(True, description="是否包含子节点"),
+    limit: int = Query(1000, description="最大预览数量"),
+):
+    """
+    预览可提取的数据量
+    
+    返回指定时间范围内可以提取的trace和node数量
+    """
+    try:
+        service = get_qa_extraction_service()
         
         result = await service.preview(
-            start_time=request.start_time,
-            end_time=request.end_time,
-            include_sub_nodes=request.include_sub_nodes,
-            limit=request.limit,
+            start_time=start_time,
+            end_time=end_time,
+            include_sub_nodes=include_sub_nodes,
+            limit=limit,
         )
         
         return WebResponse(data=result).to_dict()
@@ -165,18 +222,12 @@ async def preview_extraction(request: ExtractionRequest):
 @qa_router.post("/extract/execute")
 async def execute_extraction(request: ExtractionRequest):
     """
-    执行QA提取
+    执行QA数据提取
     
-    从ES的trace/node表提取QA数据，建立层级关系，保存到qa_task表
-    
-    核心流程：
-    1. 查询指定时间范围内的trace记录（E2E对话）
-    2. 为每个trace创建E2E任务（P0优先级，parent_task_id为空）
-    3. 查询该trace下的node记录（Agent/Tool调用）
-    4. 为每个node创建子任务（P1-P3优先级，parent_task_id指向E2E任务）
+    从ES的trace/node表提取QA数据，建立层级关系，并保存到qa_task表
     """
     try:
-        service = get_extraction_service()
+        service = get_qa_extraction_service()
         
         result = await service.extract_and_save(
             start_time=request.start_time,
@@ -206,14 +257,17 @@ async def list_tasks(
     batch_id: Optional[str] = None,
     only_root: bool = Query(False, description="只查询E2E根任务"),
     search: Optional[str] = None,
+    start_time: Optional[str] = Query(None, description="创建时间-开始时间"),
+    end_time: Optional[str] = Query(None, description="创建时间-结束时间"),
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ):
     """
     查询任务列表
     
-    支持筛选、分页、搜索
+    支持筛选、分页、搜索、时间范围过滤
     - only_root=true: 只返回E2E任务（用于树形展示的顶层）
+    - start_time/end_time: 按创建时间筛选（新增）
     """
     try:
         service = get_task_service()
@@ -228,6 +282,8 @@ async def list_tasks(
             batch_id=batch_id,
             only_root=only_root,
             search_keyword=search,
+            start_time=start_time,
+            end_time=end_time,
             sort_by=sort_by,
             sort_order=sort_order,
         )
@@ -246,27 +302,13 @@ async def list_tasks_tree(
     priority: Optional[int] = None,
     batch_id: Optional[str] = None,
     search: Optional[str] = None,
+    start_time: Optional[str] = Query(None, description="创建时间-开始时间"),
+    end_time: Optional[str] = Query(None, description="创建时间-结束时间"),
 ):
     """
     查询任务树形列表
     
     返回E2E根任务及其子任务的树形结构，用于前端层级展示
-    
-    返回格式：
-    {
-        "tasks": [
-            {
-                "task_id": "xxx",
-                "question": "用户问题",
-                "source_type": "e2e",
-                "priority": 0,
-                "children_count": 3,
-                "children": [
-                    {"task_id": "yyy", "source_type": "agent_agent", ...}
-                ]
-            }
-        ]
-    }
     """
     try:
         service = get_task_service()
@@ -338,63 +380,8 @@ async def assign_task(request: TaskAssignRequest):
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
-@qa_router.post("/tasks/status")
-async def update_task_status(request: TaskStatusUpdateRequest):
-    """更新任务状态"""
-    try:
-        service = get_task_service()
-        
-        success = await service.update_task_status(
-            task_id=request.task_id,
-            status=request.status,
-            stage=request.stage
-        )
-        if success:
-            return WebResponse(data={"success": True}).to_dict()
-        else:
-            return WebResponse(code=400, message="Failed to update task status").to_dict()
-    except Exception as e:
-        logger.error(f"Update task status failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
-@qa_router.get("/tasks/pending/list")
-async def get_pending_tasks(
-    annotator_id: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=50),
-):
-    """获取待标注任务列表"""
-    try:
-        service = get_task_service()
-        
-        result = await service.get_pending_tasks_for_annotator(
-            annotator_id=annotator_id,
-            page=page,
-            page_size=page_size,
-        )
-        
-        return WebResponse(data=result).to_dict()
-    except Exception as e:
-        logger.error(f"Get pending tasks failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
-@qa_router.get("/stats")
-async def get_stats():
-    """获取任务统计信息"""
-    try:
-        service = get_task_service()
-        
-        result = await service.get_stats()
-        return WebResponse(data=result).to_dict()
-    except Exception as e:
-        logger.error(f"Get stats failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
 @qa_router.get("/batches")
-async def get_batch_list():
+async def list_batches():
     """获取批次列表"""
     try:
         service = get_task_service()
@@ -510,59 +497,37 @@ async def review_annotation(request: ReviewRequest):
 
 
 # =============================================================================
-# 系统配置API
+# 统计API
 # =============================================================================
 
-@qa_router.get("/config")
-async def get_qa_config():
-    """获取QA标注平台配置"""
+@qa_router.get("/stats")
+async def get_stats():
+    """获取标注统计信息"""
     try:
-        config = {
-            "enabled": Config.is_qa_annotation_enabled(),
-            "realtime_hook_enabled": Config.is_qa_realtime_hook_enabled(),
-            "llm_processor_enabled": Config.is_qa_llm_processor_enabled(),
-            "mq_type": Config.get_qa_mq_type(),
-            "collector_config": Config.get_qa_collector_config(),
-            "task_config": Config.get_qa_task_config(),
-            "platform_config": Config.get_qa_platform_config(),
-        }
-        return WebResponse(data=config).to_dict()
+        service = get_task_service()
+        
+        result = await service.get_overview()
+        return WebResponse(data=result).to_dict()
     except Exception as e:
-        logger.error(f"Get QA config failed: {e}")
-        return WebResponse(code=500, message=str(e)).to_dict()
-
-
-@qa_router.get("/health")
-async def health_check():
-    """健康检查"""
-    try:
-        es_ok = _es_client is not None
-        return WebResponse(data={
-            "status": "ok" if es_ok else "degraded",
-            "es_client": "connected" if es_ok else "not initialized",
-        }).to_dict()
-    except Exception as e:
+        logger.error(f"Get stats failed: {e}")
         return WebResponse(code=500, message=str(e)).to_dict()
 
 
 # =============================================================================
-# ES索引管理API
+# 初始化API（用于调试）
 # =============================================================================
 
-@qa_router.post("/admin/init-indices")
+@qa_router.post("/init-indices")
 async def init_indices():
-    """
-    初始化ES索引
-    
-    创建qa_task和qa_annotation索引（如果不存在）
-    """
+    """初始化所有需要的索引"""
     try:
-        from .schemas.task import QA_TASK_MAPPING
-        from .schemas.annotation import QA_ANNOTATION_MAPPING
+        from oxygent.databases.db_es import get_es_client
+        from oxygent.config import Config
+        from oxygent.qa_annotation.schemas.task import QA_TASK_MAPPING
+        from oxygent.qa_annotation.schemas.annotation import QA_ANNOTATION_MAPPING
         
-        es = get_es_client()
+        es = await get_es_client()
         app_name = Config.get_app_name()
-        
         results = {}
         
         # 创建qa_task索引
