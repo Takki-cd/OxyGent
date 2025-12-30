@@ -266,6 +266,40 @@ class LocalEs(BaseEs):
         if not query:
             return docs
 
+        # Support match query for full-text search (case-insensitive substring match)
+        if "match" in query:
+            match_query = query["match"]
+            # Handle both simple match: {"field": "value"} and complex match: {"field": {"query": "value", "operator": "and"}}
+            if isinstance(match_query, dict):
+                field_name = None
+                search_value = None
+                operator = "or"  # default operator
+
+                for k, v in match_query.items():
+                    if isinstance(v, dict):
+                        field_name = k
+                        search_value = v.get("query", "")
+                        operator = v.get("operator", "or")
+                    else:
+                        field_name = k
+                        search_value = v
+
+                if field_name and search_value:
+                    search_terms = str(search_value).lower().split()
+                    filtered_docs = []
+                    for doc in docs:
+                        field_value = str(doc["_source"].get(field_name, "")).lower()
+                        if operator == "and":
+                            # All terms must be present
+                            if all(term in field_value for term in search_terms):
+                                filtered_docs.append(doc)
+                        else:
+                            # At least one term must be present (or)
+                            if any(term in field_value for term in search_terms):
+                                filtered_docs.append(doc)
+                    return filtered_docs
+            return docs
+
         if "term" in query:
             k, v = next(iter(query["term"].items()))
             if k == "_id":
@@ -278,37 +312,21 @@ class LocalEs(BaseEs):
 
         if "bool" in query:
             bool_query = query["bool"]
+            filtered_docs = docs.copy()
 
+            # Process "must" conditions (must match - affects scoring)
             if "must" in bool_query:
                 must_conditions = bool_query["must"]
-                filtered_docs = docs.copy()
-
                 for condition in must_conditions:
                     filtered_docs = self._filter_docs(filtered_docs, condition)
-                return filtered_docs
 
-            if "should" in bool_query:
-                should_conditions = bool_query["should"]
-                filtered_docs = []
-                for doc in docs:
-                    for cond in should_conditions:
-                        if self._match_single_condition(doc, cond):
-                            filtered_docs.append(doc)
-                            break
-                return filtered_docs
+            # Process "filter" conditions (filter context - no scoring, but must match)
+            if "filter" in bool_query:
+                filter_conditions = bool_query["filter"]
+                for condition in filter_conditions:
+                    filtered_docs = self._filter_docs(filtered_docs, condition)
 
-            if "must_not" in bool_query:
-                must_not_conditions = bool_query["must_not"]
-                filtered_docs = []
-                for doc in docs:
-                    exclude = False
-                    for cond in must_not_conditions:
-                        if self._match_single_condition(doc, cond):
-                            exclude = True
-                            break
-                    if not exclude:
-                        filtered_docs.append(doc)
-                return filtered_docs
+            return filtered_docs
 
         if "range" in query:
             range_conditions = query["range"]
@@ -318,32 +336,42 @@ class LocalEs(BaseEs):
                 for field, range_params in range_conditions.items():
                     value = doc["_source"].get(field, "")
                     value_str = str(value)
-                    
-                    # 解析文档时间
+
+                    # Parse document timestamp
                     parsed_dt = None
                     try:
-                        if len(value_str) > 19:
-                            # 截断为 26 字符（6 位小数）
-                            value_str_truncated = value_str[:26]
-                            parsed_dt = datetime.strptime(value_str_truncated, "%Y-%m-%d %H:%M:%S.%f")
-                        else:
-                            parsed_dt = datetime.strptime(value_str, "%Y-%m-%d %H:%M:%S.%f")
+                        # Try full format with microseconds (26 chars like "2025-12-30 18:19:38.050895")
+                        # Try without microseconds (19 chars like "2025-12-30 18:19:38")
+                        time_formats = [
+                            "%Y-%m-%d %H:%M:%S.%f",  # Full format with 6 microseconds
+                            "%Y-%m-%d %H:%M:%S",     # Without microseconds
+                        ]
+                        for fmt in time_formats:
+                            try:
+                                parsed_dt = datetime.strptime(value_str, fmt)
+                                break
+                            except Exception:
+                                continue
                     except Exception:
                         pass
-                    
-                    # 实际的 range 过滤逻辑
+
+                    # Actual range filtering logic
                     try:
                         if parsed_dt:
                             for op, threshold in range_params.items():
                                 threshold_str = str(threshold)
-                                
-                                # 解析阈值时间：支持带微秒和不带微秒的格式
-                                if len(threshold_str) > 19:
-                                    # 带微秒：截断为 26 字符（6 位小数）
-                                    threshold_dt = datetime.strptime(threshold_str[:26], "%Y-%m-%d %H:%M:%S.%f")
-                                else:
-                                    # 不带微秒：只有 19 字符
-                                    threshold_dt = datetime.strptime(threshold_str, "%Y-%m-%d %H:%M:%S")
+
+                                # Parse threshold timestamp - try multiple formats
+                                threshold_dt = None
+                                for fmt in time_formats:
+                                    try:
+                                        threshold_dt = datetime.strptime(threshold_str, fmt)
+                                        break
+                                    except Exception:
+                                        continue
+
+                                if threshold_dt is None:
+                                    continue
 
                                 if op == "gte" and parsed_dt < threshold_dt:
                                     match = False
@@ -357,11 +385,11 @@ class LocalEs(BaseEs):
                                 elif op == "lt" and parsed_dt >= threshold_dt:
                                     match = False
                                     break
-                                
+
                                 if not match:
                                     break
                     except Exception:
-                        # 回退到字符串比较
+                        # Fallback to string comparison
                         for op, threshold in range_params.items():
                             if op == "gte" and str(value) < str(threshold):
                                 match = False
@@ -377,7 +405,7 @@ class LocalEs(BaseEs):
                                 break
                 if match:
                     filtered_docs.append(doc)
-            
+
             return filtered_docs
 
         return docs
@@ -420,6 +448,31 @@ class LocalEs(BaseEs):
         if "terms" in condition:
             k, vlist = next(iter(condition["terms"].items()))
             return doc["_source"].get(k) in vlist
+
+        # Support match query in single condition context
+        if "match" in condition:
+            match_query = condition["match"]
+            if isinstance(match_query, dict):
+                field_name = None
+                search_value = None
+                operator = "or"
+
+                for k, v in match_query.items():
+                    if isinstance(v, dict):
+                        field_name = k
+                        search_value = v.get("query", "")
+                        operator = v.get("operator", "or")
+                    else:
+                        field_name = k
+                        search_value = v
+
+                if field_name and search_value:
+                    field_value = str(doc["_source"].get(field_name, "")).lower()
+                    search_terms = str(search_value).lower().split()
+                    if operator == "and":
+                        return all(term in field_value for term in search_terms)
+                    else:
+                        return any(term in field_value for term in search_terms)
 
         return False
 

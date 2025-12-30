@@ -18,8 +18,8 @@
                 <h1>QA标注平台</h1>
             </div>
             <div class="header-actions">
-                <button class="btn btn-secondary btn-small" onclick="window.open('index.html', '_self')">
-                    刷新
+                <button class="btn btn-secondary btn-small" onclick="applyFilters()">
+                    查询
                 </button>
             </div>
         </header>
@@ -78,7 +78,7 @@
                             <div class="filter-group-title">Caller</div>
                             <div class="search-input-wrapper">
                                 <input type="text" class="filter-input-full" id="filterCaller" placeholder="输入Caller...">
-                                <span class="search-icon" onclick="doSearch('caller')">
+                                <span class="search-icon" onclick="handleSearchClick('caller')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -92,7 +92,35 @@
                             <div class="filter-group-title">Callee</div>
                             <div class="search-input-wrapper">
                                 <input type="text" class="filter-input-full" id="filterCallee" placeholder="输入Callee...">
-                                <span class="search-icon" onclick="doSearch('callee')">
+                                <span class="search-icon" onclick="handleSearchClick('callee')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Group ID -->
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <div class="filter-group-title">Group ID</div>
+                            <div class="search-input-wrapper">
+                                <input type="text" class="filter-input-full" id="filterGroupId" placeholder="输入Group ID...">
+                                <span class="search-icon" onclick="handleSearchClick('group_id')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Trace ID -->
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <div class="filter-group-title">Trace ID</div>
+                            <div class="search-input-wrapper">
+                                <input type="text" class="filter-input-full" id="filterTraceId" placeholder="输入Trace ID...">
+                                <span class="search-icon" onclick="handleSearchClick('trace_id')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -106,7 +134,7 @@
                             <div class="filter-group-title">搜索</div>
                             <div class="search-input-wrapper">
                                 <input type="text" class="filter-input-full" id="filterSearch" placeholder="搜索QA内容...">
-                                <span class="search-icon" onclick="doSearch('content')">
+                                <span class="search-icon" onclick="handleSearchClick('search')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -179,9 +207,6 @@
                     <h2 class="main-title">数据列表</h2>
                     <div class="main-actions">
                         <span class="main-stats" id="mainStats">共 0 条</span>
-                        <button class="btn btn-secondary btn-small" onclick="loadData()">
-                            刷新
-                        </button>
                     </div>
                 </div>
 
@@ -240,6 +265,10 @@
             <!-- 由JS渲染 -->
         </div>
     </aside>
+
+    <!-- Flatpickr 日期时间选择器 -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
 
     <script src="./js/annotation.js?v=4"></script>
 </body>

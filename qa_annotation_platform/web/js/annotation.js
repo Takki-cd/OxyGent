@@ -303,19 +303,19 @@ async function loadStats() {
 
 async function loadData(page = 1) {
     const filters = getFilters();
-    
+
     try {
         const data = await apiGet('/data', {
             ...filters,
             page: page,
             page_size: state.pageSize
         });
-        
+
         state.dataList = data.items || [];
         state.total = data.total || 0;
         state.currentPage = data.page || 1;
         state.totalPages = data.total_pages || 1;
-        
+
         renderDataList();
         renderPagination();
     } catch (error) {
@@ -327,25 +327,57 @@ async function loadData(page = 1) {
 function getFilters() {
     const startTime = document.getElementById('filterStartTime')?.value;
     const endTime = document.getElementById('filterEndTime')?.value;
-    
+    const filterCaller = document.getElementById('filterCaller')?.value;
+    const filterCallee = document.getElementById('filterCallee')?.value;
+    const filterGroupId = document.getElementById('filterGroupId')?.value;
+    const filterTraceId = document.getElementById('filterTraceId')?.value;
+    const filterSearch = document.getElementById('filterSearch')?.value;
+
     return {
         data_type: document.getElementById('filterDataType')?.value || '',
         status: document.getElementById('filterStatus')?.value || '',
         priority: document.getElementById('filterPriority')?.value || '',
-        caller: document.getElementById('filterCaller')?.value || '',
-        callee: document.getElementById('filterCallee')?.value || '',
+        caller: filterCaller || '',
+        callee: filterCallee || '',
+        group_id: filterGroupId || '',
+        trace_id: filterTraceId || '',
+        search: filterSearch || '',
         start_time: startTime ? formatTimeForBackend(startTime) : '',
-        end_time: endTime ? formatTimeForBackend(endTime) : '',
-        search: document.getElementById('filterSearch')?.value || ''
+        end_time: endTime ? formatTimeForBackend(endTime) : ''
     };
 }
 
 function formatTimeForBackend(datetimeLocal) {
     if (!datetimeLocal) return '';
-    return datetimeLocal.replace('T', ' ') + ':00';
+    // datetime-local格式是 "2025-12-27T20:38"，需要转换为ISO格式 "2025-12-27T20:38:00"
+    // 直接返回，FastAPI会自动解析
+    return datetimeLocal + ':00';
 }
 
-// 搜索函数 - 点击搜索按钮触发
+// 防抖定时器
+let filterDebounceTimer = null;
+
+// 防抖加载数据（用于实时搜索场景）
+function debounceLoadData() {
+    if (filterDebounceTimer) {
+        clearTimeout(filterDebounceTimer);
+    }
+    filterDebounceTimer = setTimeout(() => {
+        loadData(1);
+    }, 300);
+}
+
+// 处理过滤输入框的输入事件（实时防抖搜索）
+function handleFilterInput(element) {
+    debounceLoadData();
+}
+
+// 点击搜索图标触发搜索
+function handleSearchClick(type) {
+    loadData(1);
+}
+
+// 搜索函数 - 点击搜索按钮触发（保留兼容）
 function doSearch(type) {
     loadData(1);
 }
@@ -361,8 +393,10 @@ function resetFilters() {
     document.getElementById('filterPriority').value = '';
     document.getElementById('filterCaller').value = '';
     document.getElementById('filterCallee').value = '';
+    document.getElementById('filterGroupId').value = '';
+    document.getElementById('filterTraceId').value = '';
     document.getElementById('filterSearch').value = '';
-    
+
     setDefaultTimeRange();
     loadStats(); // 同步更新统计信息
     loadData(1);
@@ -371,16 +405,16 @@ function resetFilters() {
 function setDefaultTimeRange() {
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-    
+
     const toLocalISO = (date) => {
         const offset = 8 * 60;
         const localTime = new Date(date.getTime() + offset * 60 * 1000);
         return localTime.toISOString().slice(0, 16);
     };
-    
+
     const startInput = document.getElementById('filterStartTime');
     const endInput = document.getElementById('filterEndTime');
-    
+
     if (startInput) startInput.value = toLocalISO(threeDaysAgo);
     if (endInput) endInput.value = toLocalISO(now);
 }
@@ -923,22 +957,25 @@ function toggleSection(sectionId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('QA Annotation Platform initialized (新版-旧版风格)');
-    
+
     initSidebarResize();
     initTableColumnResize();
     setDefaultTimeRange();
-    
-    // 监听时间变化
+
+    // 监听时间变化 - 原生 datetime-local 控件在选择时间后会触发 change 事件
+    // 我们阻止默认行为，只让值更新，不触发搜索
     const startInput = document.getElementById('filterStartTime');
     const endInput = document.getElementById('filterEndTime');
-    
-    if (startInput) {
-        startInput.addEventListener('change', () => loadData(1));
-    }
-    if (endInput) {
-        endInput.addEventListener('change', () => loadData(1));
-    }
-    
+
+    const handleTimeChange = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    if (startInput) startInput.addEventListener('change', handleTimeChange, { capture: true });
+    if (endInput) endInput.addEventListener('change', handleTimeChange, { capture: true });
+
+    // 加载数据和统计
     Promise.all([
         loadStats(),
         loadData()
@@ -958,3 +995,5 @@ window.rejectData = rejectData;
 window.closeDrawer = closeDrawer;
 window.toggleSection = toggleSection;
 window.doSearch = doSearch;
+window.handleFilterInput = handleFilterInput;
+window.handleSearchClick = handleSearchClick;

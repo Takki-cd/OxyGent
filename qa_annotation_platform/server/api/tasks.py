@@ -41,7 +41,7 @@ async def get_data_list(
 ):
     """
     获取数据列表（支持过滤和分页）
-    
+
     查询参数：
     - caller: 调用者过滤
     - callee: 被调用者过滤
@@ -58,7 +58,7 @@ async def get_data_list(
     - page_size: 每页数量（最大100）
     """
     service = get_annotation_service()
-    
+
     filter_params = DataFilter(
         caller=caller,
         callee=callee,
@@ -73,12 +73,12 @@ async def get_data_list(
         request_id=request_id,
         show_p0_only=show_p0_only
     )
-    
+
     result = await service.get_data_list(filter_params, page, page_size)
-    
+
     return {
         "items": [
-            DataResponse(**item).model_dump() 
+            DataResponse(**item).model_dump()
             for item in result["items"]
         ],
         "total": result["total"],

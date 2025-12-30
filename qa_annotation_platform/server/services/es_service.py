@@ -210,39 +210,39 @@ class ESService:
         """搜索数据"""
         must_clauses = []
         filter_clauses = []
-        
-        # 按caller过滤
-        if filter_params.caller:
-            must_clauses.append({"term": {"caller": filter_params.caller}})
-        
-        # 按callee过滤
-        if filter_params.callee:
-            must_clauses.append({"term": {"callee": filter_params.callee}})
-        
-        # 按data_type过滤
-        if filter_params.data_type:
-            must_clauses.append({"term": {"data_type": filter_params.data_type}})
-        
-        # 按状态过滤
-        if filter_params.status:
-            must_clauses.append({"term": {"status": filter_params.status}})
-        
-        # 按优先级过滤
+
+        # 按caller过滤（使用match查询支持模糊匹配，LocalEs已支持）
+        if filter_params.caller and filter_params.caller.strip():
+            must_clauses.append({"match": {"caller": filter_params.caller.strip()}})
+
+        # 按callee过滤（使用match查询支持模糊匹配）
+        if filter_params.callee and filter_params.callee.strip():
+            must_clauses.append({"match": {"callee": filter_params.callee.strip()}})
+
+        # 按data_type过滤（精确匹配）
+        if filter_params.data_type and filter_params.data_type.strip():
+            must_clauses.append({"term": {"data_type": filter_params.data_type.strip()}})
+
+        # 按状态过滤（精确匹配）
+        if filter_params.status and filter_params.status.strip():
+            must_clauses.append({"term": {"status": filter_params.status.strip()}})
+
+        # 按优先级过滤（精确匹配）
         if filter_params.priority is not None:
             must_clauses.append({"term": {"priority": filter_params.priority}})
-        
-        # 按group_id过滤
-        if filter_params.group_id:
-            must_clauses.append({"term": {"source_group_id": filter_params.group_id}})
-        
-        # 按trace_id过滤
-        if filter_params.trace_id:
-            must_clauses.append({"term": {"source_trace_id": filter_params.trace_id}})
-        
+
+        # 按group_id过滤（精确匹配）
+        if filter_params.group_id and filter_params.group_id.strip():
+            must_clauses.append({"term": {"source_group_id": filter_params.group_id.strip()}})
+
+        # 按trace_id过滤（精确匹配）
+        if filter_params.trace_id and filter_params.trace_id.strip():
+            must_clauses.append({"term": {"source_trace_id": filter_params.trace_id.strip()}})
+
         # 按request_id精确匹配
-        if filter_params.request_id:
-            must_clauses.append({"term": {"source_request_id": filter_params.request_id}})
-        
+        if filter_params.request_id and filter_params.request_id.strip():
+            must_clauses.append({"term": {"source_request_id": filter_params.request_id.strip()}})
+
         # 时间范围
         if filter_params.start_time or filter_params.end_time:
             time_range = {}
@@ -251,48 +251,61 @@ class ESService:
             if filter_params.end_time:
                 time_range["lte"] = filter_params.end_time.strftime("%Y-%m-%d %H:%M:%S.%f")
             filter_clauses.append({"range": {"created_at": time_range}})
-        
+
         # 只显示P0（端到端）
         if filter_params.show_p0_only:
             must_clauses.append({"term": {"priority": 0}})
-        
-        # 全文搜索
-        if filter_params.search_text:
+
+        # 全文搜索（使用match查询，LocalEs支持）
+        if filter_params.search_text and filter_params.search_text.strip():
+            search_term = filter_params.search_text.strip()
             must_clauses.append({
-                "multi_match": {
-                    "query": filter_params.search_text,
-                    "fields": ["question", "answer", "caller", "callee", "category"],
-                    "type": "best_fields"
+                "bool": {
+                    "should": [
+                        {"match": {"question": search_term}},
+                        {"match": {"answer": search_term}}
+                    ],
+                    "minimum_should_match": 1
                 }
             })
-        
+
         query = {
             "bool": {
                 "must": must_clauses if must_clauses else [{"match_all": {}}],
                 "filter": filter_clauses
             }
         }
-        
+
         from_offset = (page - 1) * page_size
-        
+
         search_body = {
             "query": query,
             "from": from_offset,
             "size": page_size,
             "sort": [{"priority": {"order": "asc"}}, {"created_at": {"order": "desc"}}]
         }
-        
+
         result = await self.es_client.search(self.index_name, search_body)
-        
+        all_items = []
+        for hit in result.get("hits", {}).get("hits", []):
+            sample = hit["_source"]
+            all_items.append({
+                "data_id": sample.get("data_id"),
+                "caller": sample.get("caller"),
+                "callee": sample.get("callee"),
+                "question": (sample.get("question") or "")[:30],
+                "created_at": sample.get("created_at")
+            })
+
         hits = result.get("hits", {}).get("hits", [])
         total = result.get("hits", {}).get("total", {}).get("value", 0)
-        
+
         items = []
         for hit in hits:
             item = hit["_source"]
             item["data_id"] = hit["_id"]
             items.append(item)
-        
+
         return {
             "items": items,
             "total": total,
