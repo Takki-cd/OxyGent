@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA标注平台 - OxyGent</title>
+    <link rel="stylesheet" href="./css/style.css?v=1">
+    <link rel="stylesheet" href="./css/annotation.css?v=1">
+</head>
+<body>
+    <div class="qa-wrapper">
+        <!-- 顶部导航 -->
+        <header class="qa-header">
+            <div class="logo">
+                <h1>QA标注平台</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary btn-small" onclick="window.open('index.html', '_blank')">
+                    返回主页
+                </button>
+            </div>
+        </header>
+
+        <!-- 主体内容 -->
+        <main class="qa-body">
+            <!-- 左侧边栏 -->
+            <aside class="qa-sidebar">
+                <!-- 全局过滤条件 -->
+                <div class="sidebar-section global-filter-section">
+                    <div class="sidebar-section-header" onclick="toggleSection('globalFilter')">
+                        <span>🔍 过滤条件</span>
+                        <span class="toggle-icon" id="globalFilterToggleIcon">▼</span>
+                    </div>
+                    <div class="section-content" id="globalFilterContent">
+                        <!-- 来源类型 -->
+                        <div class="filter-group">
+                            <div class="filter-group-title">来源类型</div>
+                            <select class="filter-select-full" id="filterQAType" onchange="applyFilters()">
+                                <option value="">全部类型</option>
+                                <option value="e2e">端到端</option>
+                                <option value="user_agent">用户Agent</option>
+                                <option value="agent_agent">子Agent</option>
+                                <option value="agent_llm">LLM</option>
+                                <option value="agent_tool">Tool</option>
+                            </select>
+                        </div>
+
+                        <!-- 时间范围 -->
+                        <div class="filter-group">
+                            <div class="filter-group-title">时间范围</div>
+                            <input type="datetime-local" id="filterStartTime" class="filter-input-full">
+                            <input type="datetime-local" id="filterEndTime" class="filter-input-full" style="margin-top: 8px;">
+                        </div>
+
+                        <!-- 快速筛选 -->
+                        <div class="filter-group">
+                            <div class="filter-group-title">快速筛选</div>
+                            <select class="filter-select-full" id="filterStatus" onchange="applyFilters()">
+                                <option value="">全部状态</option>
+                                <option value="pending">待标注</option>
+                                <option value="annotated">已标注</option>
+                                <option value="approved">已通过</option>
+                                <option value="rejected">已拒绝</option>
+                            </select>
+                            <select class="filter-select-full" id="filterPriority" onchange="applyFilters()" style="margin-top: 8px;">
+                                <option value="">全部优先级</option>
+                                <option value="0">P0-端到端</option>
+                                <option value="1">P1-Agent</option>
+                                <option value="2">P2-LLM</option>
+                                <option value="3">P3-Tool</option>
+                                <option value="4">P4-其他</option>
+                            </select>
+                        </div>
+
+                        <!-- 全文搜索 -->
+                        <div class="filter-group">
+                            <div class="filter-group-title">搜索</div>
+                            <input type="text" class="filter-input-full" id="filterSearch" 
+                                placeholder="搜索QA内容..." oninput="debounce(applyFilters, 500)()">
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="filter-actions">
+                            <button class="btn btn-primary btn-full" onclick="applyFilters()">
+                                查询
+                            </button>
+                            <button class="btn btn-secondary btn-full" onclick="resetFilters()" style="margin-top: 8px;">
+                                重置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 标注进度 -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header" onclick="toggleSection('progress')">
+                        <span>📊 标注进度</span>
+                        <span class="toggle-icon" id="progressToggleIcon">▼</span>
+                    </div>
+                    <div class="section-content" id="progressContent">
+                        <div class="progress-section">
+                            <div class="progress-stats-grid">
+                                <div class="progress-stat pending">
+                                    <div class="progress-stat-value" id="statPending">0</div>
+                                    <div class="progress-stat-label">待标注</div>
+                                </div>
+                                <div class="progress-stat annotated">
+                                    <div class="progress-stat-value" id="statAnnotated">0</div>
+                                    <div class="progress-stat-label">已标注</div>
+                                </div>
+                                <div class="progress-stat approved">
+                                    <div class="progress-stat-value" id="statApproved">0</div>
+                                    <div class="progress-stat-label">已通过</div>
+                                </div>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-label">标注进度</div>
+                                <div class="progress-bar-track">
+                                    <div class="progress-bar-fill approved" id="progressApproved" style="width: 0%"></div>
+                                    <div class="progress-bar-fill annotated" id="progressAnnotated" style="width: 0%"></div>
+                                    <div class="progress-bar-fill pending" id="progressPending" style="width: 100%"></div>
+                                </div>
+                                <div class="progress-bar-legend">
+                                    <span class="legend-item"><span class="legend-dot approved"></span>已通过</span>
+                                    <span class="legend-item"><span class="legend-dot annotated"></span>已标注</span>
+                                    <span class="legend-item"><span class="legend-dot pending"></span>待标注</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 拒绝数量 -->
+                        <div class="rejected-section">
+                            <span class="rejected-label">已拒绝</span>
+                            <span class="rejected-value" id="statRejected">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 主内容区 - QA列表 -->
+            <section class="qa-main">
+                <div class="main-header">
+                    <h2 class="main-title">QA列表</h2>
+                    <div class="main-actions">
+                        <span class="main-stats" id="mainStats">共 0 条</span>
+                        <button class="btn btn-secondary btn-small" onclick="loadTasks()">
+                            刷新
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QA列表表格 -->
+                <div class="qa-table-container">
+                    <table class="qa-table" id="qaTable">
+                        <thead>
+                            <tr>
+                                <th data-column="id" style="width: 140px;">ID</th>
+                                <th data-column="priority" style="width: 60px;">优先级</th>
+                                <th data-column="status" style="width: 80px;">状态</th>
+                                <th data-column="source_type" style="80px;">来源</th>
+                                <th data-column="question" style="width: 35%;">Question</th>
+                                <th data-column="answer" style="width: 25%;">Answer</th>
+                                <th data-column="time" style="width: 100px;">时间</th>
+                                <th data-column="action" style="width: 60px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="qaTableBody">
+                            <!-- 由JS渲染 -->
+                        </tbody>
+                    </table>
+
+                    <div class="empty-state" id="emptyState">
+                        <p>暂无QA数据，请通过API注入数据</p>
+                    </div>
+                </div>
+
+                <!-- 分页 -->
+                <div class="pagination">
+                    <span class="pagination-info" id="paginationInfo">第 1/1 页，共 0 条</span>
+                    <div class="pagination-btns" id="paginationBtns">
+                        <button class="pagination-btn" onclick="changePage(1)">首页</button>
+                        <button class="pagination-btn" onclick="changePage(state.currentPage - 1)">上一页</button>
+                        <span class="page-num" id="pageNum">1</span>
+                        <button class="pagination-btn" onclick="changePage(state.currentPage + 1)">下一页</button>
+                        <button class="pagination-btn" onclick="changePage(state.totalPages)">末页</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 右侧抽屉 - 任务详情与标注 -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+    <aside class="drawer" id="detailDrawer">
+        <div class="drawer-header">
+            <h2 class="drawer-title">任务详情</h2>
+            <button class="drawer-close" onclick="closeDrawer()">×</button>
+        </div>
+        <div class="drawer-body" id="drawerBody">
+            <!-- 由JS渲染 -->
+        </div>
+    </aside>
+
+    <script src="./js/annotation.js"></script>
+</body>
+</html>

@@ -104,9 +104,30 @@ class LocalEs(BaseEs):
     # Public ES‑like API
     # ------------------------------------------------------------------
 
+    async def index_exists(self, index_name: str) -> bool:
+        """Check if an index exists by verifying its data file.
+
+        Args:
+            index_name: Name of the index to check
+
+        Returns:
+            True if the index exists, False otherwise
+        """
+        index_path = self._index_path(index_name)
+        return await aiofiles.os.path.exists(index_path)
+
     async def create_index(
         self, index_name: str, body: dict[str, Any]
     ) -> dict[str, bool]:
+        """Create a new index with the given name and mapping body.
+        
+        Args:
+            index_name: Name of the index to create
+            body: Index configuration including mappings and settings
+            
+        Returns:
+            Dictionary with acknowledged flag
+        """
         if not index_name or not body:
             raise ValueError("index_name and body must not be empty")
 

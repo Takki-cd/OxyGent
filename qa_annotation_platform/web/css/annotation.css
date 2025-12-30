@@ -1,0 +1,154 @@
+/* 过滤区域样式 */
+.global-filter-section {
+    padding: 16px;
+    background: #fafafa;
+}
+
+.filter-input-full,
+.filter-select-full {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.filter-input-full:focus,
+.filter-select-full:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.filter-actions {
+    margin-top: 16px;
+}
+
+/* 展开/收起图标 */
+.toggle-icon {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.section-collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.section-content {
+    transition: max-height 0.3s ease;
+    overflow: hidden;
+}
+
+.section-collapsed .section-content {
+    max-height: 0 !important;
+}
+
+/* 操作按钮 */
+.action-btn {
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 13px;
+    transition: opacity 0.2s;
+}
+
+.action-btn:hover {
+    opacity: 0.7;
+}
+
+/* 审核通过/拒绝按钮 */
+.review-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 时间展示 */
+.time-cell {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* 拒绝数量展示 */
+.rejected-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px dashed var(--border-color);
+    margin-top: 8px;
+}
+
+.rejected-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.rejected-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--error-color);
+}
+
+/* Toast提示 */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    background: var(--text-primary);
+    color: white;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 2000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+}
+
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast.success { background: var(--success-color); }
+.toast.error { background: var(--error-color); }
+.toast.warning { background: var(--warning-color); }
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d9d9d9;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #bfbfbf;
+}
+
+/* 源类型标签 */
+.source-type-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #e6f7ff;
+    color: #1890ff;
+}
+
+.source-type-tag[data-type="e2e"] { background: #fff1f0; color: #ff4d4f; }
+.source-type-tag[data-type="agent_llm"] { background: #fff7e6; color: #fa8c16; }
+.source-type-tag[data-type="agent_tool"] { background: #f6ffed; color: #52c41a; }
