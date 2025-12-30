@@ -7,8 +7,8 @@
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QA标注平台 - OxyGent</title>
-    <link rel="stylesheet" href="./css/style.css?v=1">
-    <link rel="stylesheet" href="./css/annotation.css?v=1">
+    <link rel="stylesheet" href="./css/style.css?v=2">
+    <link rel="stylesheet" href="./css/annotation.css?v=2">
 </head>
 <body>
     <div class="qa-wrapper">
@@ -18,8 +18,8 @@
                 <h1>QA标注平台</h1>
             </div>
             <div class="header-actions">
-                <button class="btn btn-secondary btn-small" onclick="window.open('index.html', '_blank')">
-                    返回主页
+                <button class="btn btn-secondary btn-small" onclick="window.open('index.html', '_self')">
+                    刷新
                 </button>
             </div>
         </header>
@@ -35,21 +35,34 @@
                         <span class="toggle-icon" id="globalFilterToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="globalFilterContent">
-                        <!-- 来源类型 -->
+                        <!-- 数据类型 -->
                         <div class="filter-group">
-                            <div class="filter-group-title">来源类型</div>
-                            <select class="filter-select-full" id="filterQAType" onchange="applyFilters()">
+                            <div class="filter-group-title">数据类型</div>
+                            <select class="filter-select-full" id="filterDataType" onchange="applyFilters()">
                                 <option value="">全部类型</option>
                                 <option value="e2e">端到端</option>
-                                <option value="user_agent">用户Agent</option>
-                                <option value="agent_agent">子Agent</option>
-                                <option value="agent_llm">LLM</option>
-                                <option value="agent_tool">Tool</option>
+                                <option value="agent">Agent</option>
+                                <option value="llm">LLM</option>
+                                <option value="tool">Tool</option>
+                                <option value="custom">自定义</option>
                             </select>
                         </div>
 
-                        <!-- 时间范围 -->
+                        <!-- 调用链过滤 -->
                         <div class="filter-group">
+                            <div class="filter-group-title">Caller</div>
+                            <input type="text" class="filter-input-full" id="filterCaller" 
+                                placeholder="过滤Caller..." oninput="debounce(applyFilters, 500)()">
+                        </div>
+
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <div class="filter-group-title">Callee</div>
+                            <input type="text" class="filter-input-full" id="filterCallee" 
+                                placeholder="过滤Callee..." oninput="debounce(applyFilters, 500)()">
+                        </div>
+
+                        <!-- 时间范围 -->
+                        <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">时间范围</div>
                             <input type="datetime-local" id="filterStartTime" class="filter-input-full">
                             <input type="datetime-local" id="filterEndTime" class="filter-input-full" style="margin-top: 8px;">
@@ -73,6 +86,14 @@
                                 <option value="3">P3-Tool</option>
                                 <option value="4">P4-其他</option>
                             </select>
+                        </div>
+
+                        <!-- P0筛选 -->
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filterShowP0Only" onchange="applyFilters()">
+                                <span>只显示P0（端到端）</span>
+                            </label>
                         </div>
 
                         <!-- 全文搜索 -->
@@ -140,19 +161,19 @@
                 </div>
             </aside>
 
-            <!-- 主内容区 - QA列表 -->
+            <!-- 主内容区 - 数据列表 -->
             <section class="qa-main">
                 <div class="main-header">
-                    <h2 class="main-title">QA列表</h2>
+                    <h2 class="main-title">数据列表</h2>
                     <div class="main-actions">
                         <span class="main-stats" id="mainStats">共 0 条</span>
-                        <button class="btn btn-secondary btn-small" onclick="loadTasks()">
+                        <button class="btn btn-secondary btn-small" onclick="loadData()">
                             刷新
                         </button>
                     </div>
                 </div>
 
-                <!-- QA列表表格 -->
+                <!-- 数据列表表格 -->
                 <div class="qa-table-container">
                     <table class="qa-table" id="qaTable">
                         <thead>
@@ -160,7 +181,7 @@
                                 <th data-column="id" style="width: 140px;">ID</th>
                                 <th data-column="priority" style="width: 60px;">优先级</th>
                                 <th data-column="status" style="width: 80px;">状态</th>
-                                <th data-column="source_type" style="80px;">来源</th>
+                                <th data-column="data_type" style="width: 80px;">类型</th>
                                 <th data-column="question" style="width: 35%;">Question</th>
                                 <th data-column="answer" style="width: 25%;">Answer</th>
                                 <th data-column="time" style="width: 100px;">时间</th>
@@ -173,7 +194,10 @@
                     </table>
 
                     <div class="empty-state" id="emptyState">
-                        <p>暂无QA数据，请通过API注入数据</p>
+                        <p>暂无数据，请通过API注入数据</p>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">
+                            POST /api/v1/deposit
+                        </p>
                     </div>
                 </div>
 
@@ -192,11 +216,11 @@
         </main>
     </div>
 
-    <!-- 右侧抽屉 - 任务详情与标注 -->
+    <!-- 右侧抽屉 - 数据详情与标注 -->
     <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
     <aside class="drawer" id="detailDrawer">
         <div class="drawer-header">
-            <h2 class="drawer-title">任务详情</h2>
+            <h2 class="drawer-title">数据详情</h2>
             <button class="drawer-close" onclick="closeDrawer()">×</button>
         </div>
         <div class="drawer-body" id="drawerBody">

@@ -383,6 +383,20 @@ body {
 .priority-tag[data-priority="3"] { background: #f6ffed; color: #52c41a; }
 .priority-tag[data-priority="4"] { background: #e6f7ff; color: #1890ff; }
 
+/* 数据类型标签 */
+.data-type-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.data-type-tag[data-type="e2e"] { background: #fff0f6; color: #eb2f96; }
+.data-type-tag[data-type="agent"] { background: #e6f7ff; color: #1890ff; }
+.data-type-tag[data-type="llm"] { background: #f9f0ff; color: #722ed1; }
+.data-type-tag[data-type="tool"] { background: #f6ffed; color: #52c41a; }
+.data-type-tag[data-type="custom"] { background: #fafafa; color: #8c8c8c; }
+
 /* 空状态 */
 .empty-state {
     display: flex;
@@ -597,4 +611,19 @@ body {
     .drawer {
         width: 100%;
     }
+}
+
+/* 复选框样式 */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
 }

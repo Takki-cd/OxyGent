@@ -13,7 +13,7 @@ class ESConfig(BaseModel):
     hosts: List[str] = ["http://localhost:9200"]
     user: Optional[str] = None
     password: Optional[str] = None
-    index_prefix: str = "app_qa"
+    index_prefix: str = "qa_annotation_platform"
     # 本地ES存储目录（可选，不设置则使用主项目目录）
     local_data_dir: Optional[str] = None
 
@@ -39,7 +39,7 @@ def get_config() -> AppConfig:
     es_hosts = os.getenv("QA_ES_HOSTS", "http://localhost:9200").split(",")
     es_user = os.getenv("QA_ES_USER")
     es_password = os.getenv("QA_ES_PASSWORD")
-    es_index_prefix = os.getenv("QA_ES_INDEX_PREFIX", "app_qa")
+    es_index_prefix = os.getenv("QA_ES_INDEX_PREFIX", "qa_annotation_platform")
     es_local_data_dir = os.getenv("QA_ES_LOCAL_DATA_DIR") or None
     
     # 应用配置

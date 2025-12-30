@@ -1,114 +1,108 @@
 """
 QA标注平台 - 数据模型定义
 
-参照之前版本架构，标准化数据模型
+简化版：删除层级关系，按group_id/trace_id聚合
 """
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 import uuid
 import hashlib
 
 
-class QATaskStatus(str, Enum):
-    """QA任务状态"""
+class DataType(str, Enum):
+    """数据类型（描述数据来源类型）"""
+    E2E = "e2e"              # 端到端（用户->Agent）
+    AGENT = "agent"          # Agent调用
+    LLM = "llm"              # LLM调用
+    TOOL = "tool"            # Tool调用
+    CUSTOM = "custom"        # 自定义
+
+
+class Priority(int, Enum):
+    """优先级定义"""
+    P0 = 0       # 端到端（最高优先级）
+    P1 = 1       # 一级子节点
+    P2 = 2       # 二级子节点
+    P3 = 3       # 三级子节点
+    P4 = 4       # 其他
+
+
+class DataStatus(str, Enum):
+    """数据状态"""
     PENDING = "pending"       # 待标注
     ANNOTATED = "annotated"   # 已标注
     APPROVED = "approved"     # 已通过
     REJECTED = "rejected"     # 已拒绝
 
 
-class QATaskStage(str, Enum):
-    """QA任务阶段"""
-    PENDING = "pending"       # 待处理
-    EXTRACTING = "extracting"  # 提取中
-    REVIEWING = "reviewing"    # 审核中
-    COMPLETED = "completed"    # 完成
-
-
-class SourceType(str, Enum):
-    """数据来源类型"""
-    E2E = "e2e"              # 端到端（用户->Agent）
-    USER_AGENT = "user_agent"  # 用户直接调用Agent
-    AGENT_AGENT = "agent_agent"  # Agent调用子Agent
-    AGENT_LLM = "agent_llm"   # Agent调用LLM
-    AGENT_TOOL = "agent_tool" # Agent调用Tool
-    AGENT_OTHER = "agent_other"  # 其他
-
-
-class Priority(int, Enum):
-    """优先级定义"""
-    P0_E2E = 0       # 端到端
-    P1_AGENT = 1     # 子Agent
-    P2_LLM = 2       # LLM调用
-    P3_TOOL = 3      # Tool调用
-    P4_OTHER = 4     # 其他
-
-
 # ==================== 请求模型 ====================
 
 class DepositRequest(BaseModel):
     """
-    注入QA数据请求
+    注入数据请求
     
-    支持两种模式：
-    1. 根节点模式（is_root=True）：创建新的端到端QA
-    2. 子节点模式（parent_qa_id指定）：串联到已有QA
+    核心字段说明：
+    - source_trace_id: 来自Oxygent的current_trace_id（必填）
+    - source_request_id: 来自Oxygent的request_id（必填）
+    - source_group_id: 来自Oxygent的group_id（可选，用于会话聚合）
+    - question: 问题/输入（必填）
+    - answer: 答案/输出（可选）
+    - caller: 调用者（必填，如user/agent名称）
+    - callee: 被调用者（必填，如agent/tool/llm名称）
+    - priority: 优先级（可选，默认0，P0=端到端）
+    - data_type: 数据类型（可选，用于标注时区分来源）
     """
     # 必填：来源追溯信息
     source_trace_id: str = Field(..., description="原始trace_id（来自OxyRequest.current_trace_id）")
+    source_request_id: str = Field(..., description="原始request_id（来自OxyRequest.request_id）")
     source_group_id: Optional[str] = Field(None, description="group_id（来自OxyRequest.group_id）")
-    source_node_id: Optional[str] = Field(None, description="节点ID（可选）")
     
     # 必填：QA内容
     question: str = Field(..., description="问题/输入")
     answer: str = Field("", description="答案/输出")
     
-    # 可选：层级关系（关键字段）
-    parent_qa_id: Optional[str] = Field(None, description="父QA ID（子流程指向根QA）")
-    is_root: bool = Field(False, description="是否为根节点（端到端QA）")
+    # 必填：调用链信息（caller/callee）
+    caller: str = Field(..., description="调用者（user/agent名称）")
+    callee: str = Field(..., description="被调用者（agent/tool/llm名称）")
     
-    # 可选：来源类型（自动推断）
-    source_type: Optional[SourceType] = Field(None, description="来源类型（可选，自动推断）")
+    # 可选：调用类型（预占，用于未来扩展）
+    caller_type: Optional[str] = Field(None, description="调用者类型（预占）")
+    callee_type: Optional[str] = Field(None, description="被调用者类型（预占）")
     
-    # 可选：优先级（自动推断）
-    priority: Optional[int] = Field(None, ge=0, le=4, description="优先级0-4（可选，自动推断）")
+    # 可选：数据类型（用于标注时区分来源）
+    data_type: Optional[str] = Field(None, description="数据类型：e2e/agent/llm/tool/custom")
     
-    # 可选：调用链信息
-    caller: Optional[str] = Field(None, description="调用者")
-    callee: Optional[str] = Field(None, description="被调用者")
+    # 可选：优先级（端到端必须为P0=0，其他按需设置）
+    priority: int = Field(0, ge=0, le=4, description="优先级0-4，P0=端到端")
     
-    # 可选：附加信息
+    # 可选：分类与标签
     category: Optional[str] = Field(None, description="分类")
     tags: List[str] = Field(default_factory=list, description="标签")
+    
+    # 可选：额外数据
     extra: Dict[str, Any] = Field(default_factory=dict, description="额外数据")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "source_trace_id": "abc123",
+                "source_request_id": "req_001",
                 "source_group_id": "session_001",
                 "question": "用户输入",
                 "answer": "Agent输出",
-                "is_root": True,
-                "source_type": "e2e",
-                "priority": 0,
                 "caller": "user",
-                "callee": "my_agent"
+                "callee": "my_agent",
+                "data_type": "e2e",
+                "priority": 0  # 端到端必须是P0
             }
         }
     
-    @computed_field
-    @property
-    def qa_hash(self) -> str:
-        """计算QA去重hash"""
-        content = f"{self.question}:{self.answer}"
+    def compute_data_hash(self) -> str:
+        """计算数据去重hash"""
+        content = f"{self.source_trace_id}:{self.source_request_id}:{self.question}:{self.answer}"
         return hashlib.md5(content.encode()).hexdigest()
-    
-    def compute_qa_hash(self) -> str:
-        """兼容旧代码的别名"""
-        return self.qa_hash
 
 
 class BatchDepositRequest(BaseModel):
@@ -121,15 +115,23 @@ class BatchDepositRequest(BaseModel):
                 "items": [
                     {
                         "source_trace_id": "abc123",
-                        "question": "...",
-                        "answer": "...",
-                        "is_root": True
+                        "source_request_id": "req_001",
+                        "source_group_id": "session_001",
+                        "question": "用户输入",
+                        "answer": "Agent输出",
+                        "caller": "user",
+                        "callee": "my_agent",
+                        "priority": 0  # 端到端
                     },
                     {
                         "source_trace_id": "abc123",
-                        "question": "检索上下文",
-                        "answer": "...",
-                        "parent_qa_id": "qa_xxx"  # 指向根节点
+                        "source_request_id": "req_002",
+                        "source_group_id": "session_001",
+                        "question": "LLM调用",
+                        "answer": "LLM回答",
+                        "caller": "my_agent",
+                        "callee": "gpt-4",
+                        "priority": 2
                     }
                 ]
             }
@@ -138,57 +140,51 @@ class BatchDepositRequest(BaseModel):
 
 # ==================== 存储模型 ====================
 
-class QATask(BaseModel):
+class QAData(BaseModel):
     """
-    QA任务（存储模型）
+    QA数据（存储模型）
     
-    参照之前版本架构，完整定义所有字段
+    简化设计：
+    - 一个唯一ID（data_id）替代qa_id和task_id
+    - 按group_id/trace_id聚合，不再有parent_qa_id
+    - 端到端通过priority=0标识
+    - 使用caller/callee描述调用链
     """
-    # 核心ID
-    qa_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    # 唯一ID（替代qa_id和task_id）
+    data_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     
     # QA内容
     question: str
     answer: str = ""
-    qa_hash: str
+    data_hash: str
     
     # 来源追溯
-    source_type: str  # e2e/agent/tool/llm
     source_trace_id: str
-    source_node_id: str = ""
+    source_request_id: str
     source_group_id: str = ""
     
-    # 层级关系
-    is_root: bool = False
-    parent_qa_id: str = ""  # 指向根任务
-    depth: int = 0  # 0=端到端, 1+=子节点
-    
     # 调用链信息
-    caller: str = ""
-    callee: str = ""
-    caller_type: str = ""
-    callee_type: str = ""
+    caller: str
+    callee: str
+    caller_type: str = ""  # 预占：调用者类型
+    callee_type: str = ""  # 预占：被调用者类型
+    
+    # 数据类型（用于标注时区分来源）
+    data_type: str = ""
+    
+    # 优先级（端到端=0，子节点>0）
+    priority: int = 4
     
     # 分类与标签
     category: str = ""
     tags: List[str] = Field(default_factory=list)
     
-    # 优先级
-    priority: int = 4
-    
     # 状态
-    status: str = QATaskStatus.PENDING.value
-    stage: str = QATaskStage.PENDING.value
+    status: str = DataStatus.PENDING.value
     
     # 标注结果
     annotation: Dict[str, Any] = Field(default_factory=dict)
     scores: Dict[str, Any] = Field(default_factory=dict)
-    
-    # 分配信息
-    assigned_to: str = ""
-    assigned_at: str = ""
-    expire_at: str = ""
     
     # 批次信息
     batch_id: str = ""
@@ -216,46 +212,26 @@ class QATask(BaseModel):
         cls, 
         request: DepositRequest,
         batch_id: str = ""
-    ) -> "QATask":
-        """从DepositRequest创建QATask"""
-        # 自动推断source_type和priority
-        source_type = request.source_type
-        priority = request.priority
-        
-        if source_type is None:
-            source_type = cls._infer_source_type(
-                is_root=request.is_root,
-                caller=request.caller,
-                callee=request.callee
-            )
-        
-        if priority is None:
-            priority = cls._infer_priority(source_type)
-        
-        # 确定层级关系
-        is_root = request.is_root
-        depth = 0 if is_root else 1
-        parent_qa_id = request.parent_qa_id or ""
-        
-        # 如果是子节点但没有指定parent_qa_id，抛出警告（但允许创建）
-        if not is_root and not parent_qa_id:
-            # 后续可以通过串联机制补充
-            pass
+    ) -> "QAData":
+        """从DepositRequest创建QAData"""
+        # 自动推断data_type
+        data_type = request.data_type
+        if data_type is None:
+            data_type = cls._infer_data_type(request)
         
         return cls(
             question=request.question,
             answer=request.answer,
-            qa_hash=request.compute_qa_hash(),
-            source_type=source_type.value if isinstance(source_type, SourceType) else source_type,
+            data_hash=request.compute_data_hash(),
             source_trace_id=request.source_trace_id,
-            source_node_id=request.source_node_id or "",
+            source_request_id=request.source_request_id,
             source_group_id=request.source_group_id or "",
-            is_root=is_root,
-            parent_qa_id=parent_qa_id,
-            depth=depth,
-            caller=request.caller or "",
-            callee=request.callee or "",
-            priority=priority,
+            caller=request.caller,
+            callee=request.callee,
+            caller_type=request.caller_type or "",
+            callee_type=request.callee_type or "",
+            data_type=data_type,
+            priority=request.priority,
             category=request.category or "",
             tags=request.tags,
             extra=request.extra,
@@ -263,45 +239,22 @@ class QATask(BaseModel):
         )
     
     @staticmethod
-    def _infer_source_type(
-        is_root: bool,
-        caller: Optional[str],
-        callee: Optional[str]
-    ) -> SourceType:
-        """推断来源类型"""
-        if is_root:
-            return SourceType.E2E
-        if caller == "user":
-            return SourceType.USER_AGENT
-        # 尝试根据callee推断
-        if callee:
-            callee_lower = callee.lower()
-            if "llm" in callee_lower or "gpt" in callee_lower or "model" in callee_lower:
-                return SourceType.AGENT_LLM
-            if "tool" in callee_lower:
-                return SourceType.AGENT_TOOL
-            # 默认作为agent
-            return SourceType.AGENT_AGENT
-        return SourceType.AGENT_OTHER
-    
-    @staticmethod
-    def _infer_priority(source_type: SourceType | str) -> int:
-        """推断优先级"""
-        if isinstance(source_type, str):
-            try:
-                source_type = SourceType(source_type)
-            except ValueError:
-                return Priority.P4_OTHER.value
+    def _infer_data_type(request: DepositRequest) -> str:
+        """推断数据类型"""
+        # P0端到端
+        if request.priority == 0:
+            return "e2e"
         
-        priority_map = {
-            SourceType.E2E: Priority.P0_E2E.value,
-            SourceType.USER_AGENT: Priority.P1_AGENT.value,
-            SourceType.AGENT_AGENT: Priority.P1_AGENT.value,
-            SourceType.AGENT_LLM: Priority.P2_LLM.value,
-            SourceType.AGENT_TOOL: Priority.P3_TOOL.value,
-            SourceType.AGENT_OTHER: Priority.P4_OTHER.value,
-        }
-        return priority_map.get(source_type, Priority.P4_OTHER.value)
+        # 根据callee推断
+        callee_lower = request.callee.lower()
+        if any(keyword in callee_lower for keyword in ["llm", "gpt", "model", "openai", "anthropic"]):
+            return "llm"
+        if any(keyword in callee_lower for keyword in ["tool", "api", "search", "fetch"]):
+            return "tool"
+        if any(keyword in callee_lower for keyword in ["agent"]):
+            return "agent"
+        
+        return "custom"
 
 
 # ==================== 响应模型 ====================
@@ -309,8 +262,7 @@ class QATask(BaseModel):
 class DepositResponse(BaseModel):
     """注入响应"""
     success: bool
-    qa_id: str
-    task_id: str
+    data_id: str
     message: str
 
 
@@ -319,24 +271,25 @@ class BatchDepositResponse(BaseModel):
     success: bool
     total: int
     success_count: int
+    skipped_count: int
     failed_count: int
-    qa_ids: List[str]
+    data_ids: List[str]
     message: str
 
 
-class TaskResponse(BaseModel):
-    """任务响应"""
-    qa_id: str
-    task_id: str
+class DataResponse(BaseModel):
+    """数据响应（替代TaskResponse）"""
+    data_id: str
     question: str
     answer: str
-    source_type: str
     source_trace_id: str
-    source_node_id: str
+    source_request_id: str
     source_group_id: str
-    is_root: bool
-    parent_qa_id: str
-    depth: int
+    caller: str
+    callee: str
+    caller_type: str  # 预占
+    callee_type: str  # 预占
+    data_type: str
     priority: int
     status: str
     annotation: Dict[str, Any]
@@ -348,6 +301,22 @@ class TaskResponse(BaseModel):
         from_attributes = True
 
 
+class DataFilter(BaseModel):
+    """数据过滤条件"""
+    caller: Optional[str] = None
+    callee: Optional[str] = None
+    data_type: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[int] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    search_text: Optional[str] = None
+    group_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    request_id: Optional[str] = None  # 按request_id精确匹配
+    show_p0_only: bool = False  # 只显示P0
+
+
 class StatsResponse(BaseModel):
     """统计响应"""
     total: int
@@ -356,24 +325,9 @@ class StatsResponse(BaseModel):
     approved: int
     rejected: int
     by_priority: Dict[str, int]
-    by_type: Dict[str, int]
+    by_caller: Dict[str, int]
+    by_callee: Dict[str, int]
     by_status: Dict[str, int]
-
-
-# ==================== 过滤模型 ====================
-
-class TaskFilter(BaseModel):
-    """任务过滤条件"""
-    qa_type: Optional[str] = None  # source_type
-    status: Optional[str] = None
-    priority: Optional[int] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    search_text: Optional[str] = None
-    group_id: Optional[str] = None  # source_group_id
-    trace_id: Optional[str] = None  # source_trace_id
-    show_children: bool = False
-    show_roots_only: bool = False  # 默认显示所有数据（根节点+子节点）
 
 
 class AnnotationUpdate(BaseModel):

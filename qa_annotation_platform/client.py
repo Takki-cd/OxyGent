@@ -1,5 +1,5 @@
 """
-QA标注平台客户端
+QA标注平台客户端（简化版）
 
 供Oxygent Agent调用
 """
@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 
 class QAClient:
-    """QA标注平台客户端"""
+    """QA标注平台客户端（简化版）"""
     
     def __init__(self, base_url: str = "http://localhost:8001", timeout: int = 30):
         """
@@ -39,63 +39,52 @@ class QAClient:
     async def deposit(
         self,
         source_trace_id: str,
+        source_request_id: str,
         question: str,
         answer: str = "",
         source_group_id: Optional[str] = None,
-        source_node_id: Optional[str] = None,
-        parent_qa_id: Optional[str] = None,
-        is_root: bool = False,
-        source_type: Optional[str] = None,
-        priority: Optional[int] = None,
-        caller: Optional[str] = None,
-        callee: Optional[str] = None,
+        caller: str = "user",
+        callee: str = "",
+        data_type: Optional[str] = None,
+        priority: int = 0,
         category: Optional[str] = None,
         tags: Optional[List[str]] = None,
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入QA数据
+        注入数据（核心方法）
         
         Args:
             source_trace_id: 来自OxyRequest.current_trace_id（必填）
+            source_request_id: 来自OxyRequest.request_id（必填）
             question: 问题/输入（必填）
             answer: 答案/输出（可选）
-            source_group_id: 来自OxyRequest.group_id（可选）
-            source_node_id: 节点ID（可选）
-            parent_qa_id: 父QA ID（可选，用于子节点串联）
-            is_root: 是否为根节点（可选，默认False）
-            source_type: 来源类型（可选，自动推断）
-            priority: 优先级0-4（可选，自动推断）
-            caller: 调用者（可选）
-            callee: 被调用者（可选）
+            source_group_id: 来自OxyRequest.group_id（可选，用于聚合）
+            caller: 调用者（必填，如user/agent名称）
+            callee: 被调用者（必填，如agent/tool/llm名称）
+            data_type: 数据类型（可选，用于标注时区分来源）
+            priority: 优先级（可选，默认0，P0=端到端）
             category: 分类（可选）
             tags: 标签列表（可选）
             extra: 额外数据（可选）
         
         Returns:
-            API响应
+            API响应，包含data_id
         """
         payload = {
             "source_trace_id": source_trace_id,
+            "source_request_id": source_request_id,
             "question": question,
             "answer": answer,
-            "is_root": is_root
+            "caller": caller,
+            "callee": callee,
+            "priority": priority
         }
         
         if source_group_id:
             payload["source_group_id"] = source_group_id
-        if source_node_id:
-            payload["source_node_id"] = source_node_id
-        if parent_qa_id:
-            payload["parent_qa_id"] = parent_qa_id
-        if source_type:
-            payload["source_type"] = source_type
-        if priority is not None:
-            payload["priority"] = priority
-        if caller:
-            payload["caller"] = caller
-        if callee:
-            payload["callee"] = callee
+        if data_type:
+            payload["data_type"] = data_type
         if category:
             payload["category"] = category
         if tags:
@@ -105,97 +94,179 @@ class QAClient:
         
         return await self._request("POST", "/api/v1/deposit", payload)
     
-    async def deposit_root(
+    async def deposit_e2e(
         self,
         source_trace_id: str,
+        source_request_id: str,
         question: str,
         answer: str = "",
         source_group_id: Optional[str] = None,
-        caller: Optional[str] = None,
-        callee: Optional[str] = None,
+        callee: str = "",
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入根节点（端到端QA）
+        注入端到端数据（P0优先级）
         
-        快捷方法，等效于 is_root=True
+        快捷方法，等效于 priority=0
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
+            source_request_id=source_request_id,
             question=question,
             answer=answer,
             source_group_id=source_group_id,
-            is_root=True,
-            caller=caller,
+            caller="user",
             callee=callee,
+            data_type="e2e",
+            priority=0,
             extra=extra
         )
     
-    async def deposit_child(
+    async def deposit_agent(
         self,
-        parent_qa_id: str,
         source_trace_id: str,
+        source_request_id: str,
         question: str,
         answer: str = "",
-        source_type: Optional[str] = None,
-        priority: Optional[int] = None,
-        caller: Optional[str] = None,
-        callee: Optional[str] = None,
+        source_group_id: Optional[str] = None,
+        caller: str = "user",
+        callee: str = "",
+        priority: int = 1,
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入子节点（自动串联到父节点）
-        
-        Args:
-            parent_qa_id: 父QA ID
-            source_trace_id: trace_id（应与父节点相同）
-            question: 输入
-            answer: 输出
-            source_type: 节点类型
-            priority: 优先级
-            caller: 调用者
-            callee: 被调用者
-            extra: 额外数据
+        注入Agent调用数据（P1）
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
+            source_request_id=source_request_id,
             question=question,
             answer=answer,
-            parent_qa_id=parent_qa_id,
-            source_type=source_type,
-            priority=priority,
+            source_group_id=source_group_id,
             caller=caller,
             callee=callee,
+            data_type="agent",
+            priority=priority,
+            extra=extra
+        )
+    
+    async def deposit_llm(
+        self,
+        source_trace_id: str,
+        source_request_id: str,
+        question: str,
+        answer: str = "",
+        source_group_id: Optional[str] = None,
+        caller: str = "agent",
+        callee: str = "llm",
+        priority: int = 2,
+        extra: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        注入LLM调用数据（P2）
+        """
+        return await self.deposit(
+            source_trace_id=source_trace_id,
+            source_request_id=source_request_id,
+            question=question,
+            answer=answer,
+            source_group_id=source_group_id,
+            caller=caller,
+            callee=callee,
+            data_type="llm",
+            priority=priority,
+            extra=extra
+        )
+    
+    async def deposit_tool(
+        self,
+        source_trace_id: str,
+        source_request_id: str,
+        question: str,
+        answer: str = "",
+        source_group_id: Optional[str] = None,
+        caller: str = "agent",
+        callee: str = "",
+        priority: int = 3,
+        extra: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        注入Tool调用数据（P3）
+        """
+        return await self.deposit(
+            source_trace_id=source_trace_id,
+            source_request_id=source_request_id,
+            question=question,
+            answer=answer,
+            source_group_id=source_group_id,
+            caller=caller,
+            callee=callee,
+            data_type="tool",
+            priority=priority,
             extra=extra
         )
     
     async def batch_deposit(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """批量注入QA数据"""
+        """批量注入数据"""
         return await self._request("POST", "/api/v1/deposit/batch", {"items": items})
     
-    async def get_tasks(
+    async def get_data_list(
         self,
-        qa_type: Optional[str] = None,
+        caller: Optional[str] = None,
+        callee: Optional[str] = None,
+        data_type: Optional[str] = None,
         status: Optional[str] = None,
         priority: Optional[int] = None,
+        group_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        show_p0_only: bool = False,
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
-        """获取任务列表"""
-        params = {"page": page, "page_size": page_size}
-        if qa_type:
-            params["qa_type"] = qa_type
+        """获取数据列表"""
+        params = {
+            "page": page,
+            "page_size": page_size
+        }
+        if caller:
+            params["caller"] = caller
+        if callee:
+            params["callee"] = callee
+        if data_type:
+            params["data_type"] = data_type
         if status:
             params["status"] = status
         if priority is not None:
             params["priority"] = priority
+        if group_id:
+            params["group_id"] = group_id
+        if trace_id:
+            params["trace_id"] = trace_id
+        if show_p0_only:
+            params["show_p0_only"] = True
         
         query = "?" + "&".join([f"{k}={v}" for k, v in params.items()])
-        return await self._request("GET", f"/api/v1/tasks{query}")
+        return await self._request("GET", f"/api/v1/data{query}")
+    
+    async def get_data_by_trace(self, trace_id: str) -> Dict[str, Any]:
+        """根据trace_id获取所有关联数据"""
+        return await self._request("GET", f"/api/v1/data/trace/{trace_id}")
+    
+    async def get_data_by_group(self, group_id: str, limit: int = 100) -> Dict[str, Any]:
+        """根据group_id获取所有关联数据"""
+        return await self._request("GET", f"/api/v1/data/group/{group_id}?limit={limit}")
+    
+    async def get_groups_summary(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """获取分组汇总"""
+        return await self._request("GET", f"/api/v1/data/groups/summary?page={page}&page_size={page_size}")
+    
+    async def get_data(self, data_id: str) -> Dict[str, Any]:
+        """获取数据详情"""
+        return await self._request("GET", f"/api/v1/data/{data_id}")
     
     async def annotate(
         self,
-        qa_id: str,
+        data_id: str,
         annotation: Dict[str, Any],
         scores: Optional[Dict[str, float]] = None,
         status: Optional[str] = None
@@ -207,15 +278,23 @@ class QAClient:
         if status:
             payload["status"] = status
         
-        return await self._request("PUT", f"/api/v1/tasks/{qa_id}/annotate", payload)
+        return await self._request("PUT", f"/api/v1/data/{data_id}/annotate", payload)
     
-    async def approve(self, qa_id: str) -> Dict[str, Any]:
+    async def approve(self, data_id: str) -> Dict[str, Any]:
         """审核通过"""
-        return await self._request("POST", f"/api/v1/tasks/{qa_id}/approve", {})
+        return await self._request("POST", f"/api/v1/data/{data_id}/approve", {})
     
-    async def reject(self, qa_id: str) -> Dict[str, Any]:
+    async def reject(self, data_id: str) -> Dict[str, Any]:
         """审核拒绝"""
-        return await self._request("POST", f"/api/v1/tasks/{qa_id}/reject", {})
+        return await self._request("POST", f"/api/v1/data/{data_id}/reject", {})
+    
+    async def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        return await self._request("GET", "/api/v1/stats")
+    
+    async def get_pending_p0(self) -> Dict[str, Any]:
+        """获取待标注的P0数据"""
+        return await self._request("GET", "/api/v1/stats/pending-p0")
 
 
 class QADepositor:
@@ -225,19 +304,43 @@ class QADepositor:
         self.client = QAClient(base_url)
     
     def deposit(self, **kwargs) -> Dict[str, Any]:
-        """同步注入QA数据"""
+        """同步注入数据"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(asyncio.run, self.client.deposit(**kwargs))
             return future.result()
     
-    def deposit_root(self, **kwargs) -> Dict[str, Any]:
-        """同步注入根节点"""
+    def deposit_e2e(self, **kwargs) -> Dict[str, Any]:
+        """同步注入端到端数据"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, self.client.deposit_root(**kwargs))
+            future = executor.submit(asyncio.run, self.client.deposit_e2e(**kwargs))
+            return future.result()
+    
+    def deposit_agent(self, **kwargs) -> Dict[str, Any]:
+        """同步注入Agent数据"""
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, self.client.deposit_agent(**kwargs))
+            return future.result()
+    
+    def deposit_llm(self, **kwargs) -> Dict[str, Any]:
+        """同步注入LLM数据"""
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, self.client.deposit_llm(**kwargs))
+            return future.result()
+    
+    def deposit_tool(self, **kwargs) -> Dict[str, Any]:
+        """同步注入Tool数据"""
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, self.client.deposit_tool(**kwargs))
             return future.result()
 
 
@@ -249,4 +352,3 @@ def create_qa_client(base_url: str = "http://localhost:8001") -> QAClient:
 def create_qa_depositor(base_url: str = "http://localhost:8001") -> QADepositor:
     """创建同步QA注入器"""
     return QADepositor(base_url)
-

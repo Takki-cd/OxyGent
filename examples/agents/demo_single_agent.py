@@ -15,7 +15,9 @@ def update_query(oxy_request: OxyRequest) -> OxyRequest:
 
 
 def format_output(oxy_response: OxyResponse) -> OxyResponse:
-    oxy_response.output = "Answer: " + oxy_response.output
+    oxy_request = oxy_response.oxy_request
+    oxy_response.output = "有output" + oxy_response.output
+    oxy_response.oxy_request.call_async(callee="annotation_bank", arguments={"params": "各种QA数据需要的数据维度，例如：group_id、trace_ID、node_ID、类型、问题、答案、来源、时间、用户等"})
     return oxy_response
 
 
@@ -34,8 +36,13 @@ oxy_space = [
         name="master_agent",
         llm_model="default_llm",
         prompt="You are a helpful assistant.",
+        banks=["annotation_bank"],
         func_process_input=update_query,
         func_format_output=format_output,
+    ),
+    oxy.BankClient(
+        name="annotation_bank",
+        server_url="http://127.0.0.1:8090",
     ),
 ]
 

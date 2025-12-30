@@ -1,5 +1,5 @@
 """
-统计接口
+统计接口（简化版）
 """
 from fastapi import APIRouter
 
@@ -22,29 +22,48 @@ async def get_stats() -> StatsResponse:
     - approved: 已通过数量
     - rejected: 已拒绝数量
     - by_priority: 按优先级分布
-    - by_type: 按类型分布
+    - by_oxy_type: 按组件类型分布
     - by_status: 按状态分布
     """
     service = get_annotation_service()
     return await service.get_stats()
 
 
-@router.get("/low-score")
-async def get_low_score_tasks(threshold: float = 0.6):
+@router.get("/pending-p0")
+async def get_pending_p0():
     """
-    获取低分任务（需要关注的任务）
+    获取待标注的P0数据（优先处理的任务）
     
-    查询参数：
-    - threshold: 分数阈值（默认0.6）
-    
-    返回评分较低的根节点，这些节点可能需要查看子节点进行深入分析。
+    返回所有待标注的端到端数据。
     """
+    from ..models import DataFilter
+    
     service = get_annotation_service()
     
-    low_score_roots = await service.es_service._get_low_score_root_qa_ids(threshold)
+    filter_params = DataFilter(
+        status="pending",
+        show_p0_only=True
+    )
+    
+    result = await service.get_data_list(filter_params, page=1, page_size=100)
     
     return {
-        "threshold": threshold,
-        "count": len(low_score_roots),
-        "qa_ids": low_score_roots
+        "type": "pending_p0",
+        "description": "待标注的端到端数据（P0优先级）",
+        "count": result["total"],
+        "items": result["items"]
+    }
+
+
+@router.get("/by-oxy-type")
+async def get_stats_by_oxy_type():
+    """
+    按组件类型获取统计
+    """
+    service = get_annotation_service()
+    stats = await service.get_stats()
+    
+    return {
+        "by_oxy_type": stats.by_oxy_type,
+        "total": stats.total
     }

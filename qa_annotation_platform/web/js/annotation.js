@@ -1,12 +1,20 @@
 /**
- * QA标注平台前端逻辑
+ * QA标注平台前端逻辑（简化版）
+ * 
+ * 适配变更：
+ * - API路径从 /tasks 改为 /data
+ * - 字段名从 qa_id 改为 data_id
+ * - 字段名从 source_type 改为 data_type
+ * - 删除 is_root 和 depth 相关显示
+ * - 新增 caller_type 和 callee_type 显示（预占）
+ * - 新增 source_request_id 显示
  */
 
 const API_BASE = '/api/v1';
 
 // 全局状态
 let state = {
-    tasks: [],
+    dataList: [],
     total: 0,
     currentPage: 1,
     pageSize: 20,
@@ -17,7 +25,7 @@ let state = {
         approved: 0,
         rejected: 0
     },
-    selectedTask: null
+    selectedData: null
 };
 
 // 工具函数
@@ -104,56 +112,62 @@ async function loadStats() {
     }
 }
 
-// 获取任务列表
-async function loadTasks(page = 1) {
+// 获取数据列表
+async function loadData(page = 1) {
     const filters = getFilters();
     
     try {
-        const data = await apiGet('/tasks', {
+        const data = await apiGet('/data', {
             ...filters,
             page: page,
             page_size: state.pageSize
         });
         
-        state.tasks = data.items || [];
+        state.dataList = data.items || [];
         state.total = data.total || 0;
         state.currentPage = data.page || 1;
         state.totalPages = data.total_pages || 1;
         
-        renderTasks();
+        renderDataList();
         renderPagination();
     } catch (error) {
-        console.error('获取任务列表失败:', error);
-        showToast('获取任务列表失败', 'error');
+        console.error('获取数据列表失败:', error);
+        showToast('获取数据列表失败', 'error');
     }
 }
 
 // 获取过滤条件
 function getFilters() {
     return {
-        qa_type: document.getElementById('filterQAType')?.value || '',
+        data_type: document.getElementById('filterDataType')?.value || '',
         status: document.getElementById('filterStatus')?.value || '',
         priority: document.getElementById('filterPriority')?.value || '',
+        caller: document.getElementById('filterCaller')?.value || '',
+        callee: document.getElementById('filterCallee')?.value || '',
         start_time: document.getElementById('filterStartTime')?.value || '',
         end_time: document.getElementById('filterEndTime')?.value || '',
-        search: document.getElementById('filterSearch')?.value || ''
+        search: document.getElementById('filterSearch')?.value || '',
+        show_p0_only: document.getElementById('filterShowP0Only')?.checked || false
     };
 }
 
 // 应用过滤
 function applyFilters() {
-    loadTasks(1);
+    loadData(1);
 }
 
 // 重置过滤
 function resetFilters() {
-    document.getElementById('filterQAType').value = '';
+    document.getElementById('filterDataType').value = '';
     document.getElementById('filterStatus').value = '';
     document.getElementById('filterPriority').value = '';
+    document.getElementById('filterCaller').value = '';
+    document.getElementById('filterCallee').value = '';
     document.getElementById('filterStartTime').value = '';
     document.getElementById('filterEndTime').value = '';
     document.getElementById('filterSearch').value = '';
-    loadTasks(1);
+    document.getElementById('filterShowP0Only').checked = false;
+    loadData(1);
 }
 
 // 渲染统计信息
@@ -175,12 +189,12 @@ function renderStats() {
     document.getElementById('progressApproved').style.width = `${approvedPercent}%`;
 }
 
-// 渲染任务列表
-function renderTasks() {
+// 渲染数据列表
+function renderDataList() {
     const tbody = document.getElementById('qaTableBody');
     const emptyState = document.getElementById('emptyState');
     
-    if (state.tasks.length === 0) {
+    if (state.dataList.length === 0) {
         tbody.innerHTML = '';
         emptyState.style.display = 'flex';
         return;
@@ -188,25 +202,25 @@ function renderTasks() {
     
     emptyState.style.display = 'none';
     
-    tbody.innerHTML = state.tasks.map(task => `
+    tbody.innerHTML = state.dataList.map(data => `
         <tr>
-            <td title="${task.qa_id}">${task.qa_id.substring(0, 8)}...</td>
+            <td title="${data.data_id}">${data.data_id.substring(0, 8)}...</td>
             <td>
-                <span class="priority-tag" data-priority="${task.priority}">
-                    P${task.priority}
+                <span class="priority-tag" data-priority="${data.priority}">
+                    P${data.priority}
                 </span>
             </td>
             <td>
-                <span class="status-tag ${task.status}">${getStatusText(task.status)}</span>
+                <span class="status-tag ${data.status}">${getStatusText(data.status)}</span>
             </td>
-            <td title="${task.source_type}">
-                <span class="source-type-tag" data-type="${task.source_type}">${getSourceTypeText(task.source_type)}</span>
+            <td title="${data.data_type || '-'}">
+                <span class="data-type-tag" data-type="${data.data_type}">${getDataTypeText(data.data_type)}</span>
             </td>
-            <td title="${formatQuestion(task)}">${formatQuestion(task)}</td>
-            <td title="${formatAnswer(task)}">${formatAnswer(task)}</td>
-            <td class="time-cell">${formatTime(task.created_at)}</td>
+            <td title="${formatQuestion(data)}">${formatQuestion(data)}</td>
+            <td title="${formatAnswer(data)}">${formatAnswer(data)}</td>
+            <td class="time-cell">${formatTime(data.created_at)}</td>
             <td>
-                <button class="action-btn" onclick="viewTask('${task.qa_id}')">
+                <button class="action-btn" onclick="viewData('${data.data_id}')">
                     查看
                 </button>
             </td>
@@ -217,16 +231,16 @@ function renderTasks() {
     document.getElementById('mainStats').textContent = `共 ${state.total} 条`;
 }
 
-function formatQuestion(task) {
-    if (task.question) {
-        return String(task.question).substring(0, 50);
+function formatQuestion(data) {
+    if (data.question) {
+        return String(data.question).substring(0, 50);
     }
     return '-';
 }
 
-function formatAnswer(task) {
-    if (task.answer) {
-        return String(task.answer).substring(0, 100);
+function formatAnswer(data) {
+    if (data.answer) {
+        return String(data.answer).substring(0, 100);
     }
     return '-';
 }
@@ -241,16 +255,15 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
-function getSourceTypeText(type) {
+function getDataTypeText(type) {
     const typeMap = {
         'e2e': '端到端',
-        'user_agent': '用户Agent',
-        'agent_agent': '子Agent',
-        'agent_llm': 'LLM',
-        'agent_tool': 'Tool',
-        'agent_other': '其他'
+        'agent': 'Agent',
+        'llm': 'LLM',
+        'tool': 'Tool',
+        'custom': '自定义'
     };
-    return typeMap[type] || type;
+    return typeMap[type] || type || '-';
 }
 
 // 渲染分页
@@ -275,62 +288,68 @@ function renderPagination() {
 // 翻页
 function changePage(page) {
     if (page < 1 || page > state.totalPages) return;
-    loadTasks(page);
+    loadData(page);
 }
 
-// 查看任务详情
-async function viewTask(qaId) {
+// 查看数据详情
+async function viewData(dataId) {
     try {
-        const task = await apiGet(`/tasks/${qaId}`);
-        state.selectedTask = task;
-        renderTaskDetail(task);
+        const data = await apiGet(`/data/${dataId}`);
+        state.selectedData = data;
+        renderDataDetail(data);
         openDrawer();
     } catch (error) {
-        console.error('获取任务详情失败:', error);
-        showToast('获取任务详情失败', 'error');
+        console.error('获取数据详情失败:', error);
+        showToast('获取数据详情失败', 'error');
     }
 }
 
-// 渲染任务详情
-function renderTaskDetail(task) {
+// 渲染数据详情
+function renderDataDetail(data) {
     const drawerBody = document.getElementById('drawerBody');
     
     drawerBody.innerHTML = `
         <div class="detail-section">
             <div class="detail-section-title">基本信息</div>
             <div class="detail-data-card">
-                <div class="detail-key">QA ID</div>
-                <div class="detail-value">${task.qa_id}</div>
+                <div class="detail-key">Data ID</div>
+                <div class="detail-value">${data.data_id}</div>
             </div>
             <div class="detail-data-card" style="margin-top: 8px;">
                 <div class="detail-key">Trace ID</div>
-                <div class="detail-value">${task.source_trace_id}</div>
+                <div class="detail-value">${data.source_trace_id}</div>
             </div>
             <div class="detail-data-card" style="margin-top: 8px;">
-                <div class="detail-key">来源类型</div>
+                <div class="detail-key">Request ID</div>
+                <div class="detail-value">${data.source_request_id || '-'}</div>
+            </div>
+            ${data.source_group_id ? `
+            <div class="detail-data-card" style="margin-top: 8px;">
+                <div class="detail-key">Group ID</div>
+                <div class="detail-value">${data.source_group_id}</div>
+            </div>
+            ` : ''}
+            <div class="detail-data-card" style="margin-top: 8px;">
+                <div class="detail-key">数据类型</div>
                 <div class="detail-value">
-                    <span class="source-type-tag" data-type="${task.source_type}">${getSourceTypeText(task.source_type)}</span>
+                    <span class="data-type-tag" data-type="${data.data_type}">${getDataTypeText(data.data_type)}</span>
                 </div>
             </div>
             <div class="detail-data-card" style="margin-top: 8px;">
                 <div class="detail-key">优先级</div>
-                <div class="detail-value">P${task.priority}</div>
+                <div class="detail-value">
+                    <span class="priority-tag" data-priority="${data.priority}">P${data.priority}</span>
+                </div>
             </div>
             <div class="detail-data-card" style="margin-top: 8px;">
                 <div class="detail-key">状态</div>
                 <div class="detail-value">
-                    <span class="status-tag ${task.status}">${getStatusText(task.status)}</span>
-                </div>
-            </div>
-            <div class="detail-data-card" style="margin-top: 8px;">
-                <div class="detail-key">层级</div>
-                <div class="detail-value">
-                    ${task.is_root ? '根节点（端到端）' : `子节点 (depth=${task.depth})`}
+                    <span class="status-tag ${data.status}">${getStatusText(data.status)}</span>
                 </div>
             </div>
             <div class="detail-data-card" style="margin-top: 8px;">
                 <div class="detail-key">创建时间</div>
-                <div class="detail-value">${formatTime(task.created_at)}</div>
+                <div class="detail-value">${formatTime(data.created_at)}</div>
             </div>
         </div>
         
@@ -339,35 +358,49 @@ function renderTaskDetail(task) {
             <div class="detail-data-card">
                 <div class="detail-key">Question / Input</div>
                 <div class="detail-value" style="margin-bottom: 12px;">
-                    <pre>${formatValue(task.question)}</pre>
+                    <pre>${formatValue(data.question)}</pre>
                 </div>
                 <div class="detail-key">Answer / Output</div>
                 <div class="detail-value">
-                    <pre>${formatValue(task.answer)}</pre>
+                    <pre>${formatValue(data.answer)}</pre>
                 </div>
             </div>
         </div>
         
-        ${task.caller || task.callee ? `
+        ${data.caller || data.callee ? `
         <div class="detail-section">
             <div class="detail-section-title">调用链信息</div>
             <div class="detail-data-card">
-                ${task.caller ? `<div class="detail-key">Caller</div><div class="detail-value" style="margin-bottom: 8px;">${task.caller}</div>` : ''}
-                ${task.callee ? `<div class="detail-key">Callee</div><div class="detail-value">${task.callee}</div>` : ''}
+                ${data.caller ? `
+                <div class="detail-key">Caller</div>
+                <div class="detail-value" style="margin-bottom: 8px;">${data.caller}</div>
+                ` : ''}
+                ${data.callee ? `
+                <div class="detail-key">Callee</div>
+                <div class="detail-value" style="margin-bottom: 8px;">${data.callee}</div>
+                ` : ''}
+                ${data.caller_type ? `
+                <div class="detail-key">Caller Type (预占)</div>
+                <div class="detail-value" style="margin-bottom: 8px;">${data.caller_type}</div>
+                ` : ''}
+                ${data.callee_type ? `
+                <div class="detail-key">Callee Type (预占)</div>
+                <div class="detail-value">${data.callee_type}</div>
+                ` : ''}
             </div>
         </div>
         ` : ''}
         
-        ${task.annotation && Object.keys(task.annotation).length > 0 ? `
+        ${data.annotation && Object.keys(data.annotation).length > 0 ? `
         <div class="detail-section">
             <div class="detail-section-title">标注结果</div>
             <div class="detail-data-card">
-                ${renderAnnotation(task.annotation)}
+                ${renderAnnotation(data.annotation)}
             </div>
         </div>
         ` : ''}
         
-        ${task.status !== 'pending' ? '' : renderAnnotationForm(task)}
+        ${data.status !== 'pending' ? '' : renderAnnotationForm(data)}
     `;
 }
 
@@ -387,7 +420,7 @@ function renderAnnotation(annotation) {
 }
 
 // 渲染标注表单
-function renderAnnotationForm(task) {
+function renderAnnotationForm(data) {
     return `
         <div class="detail-section">
             <div class="detail-section-title">标注</div>
@@ -414,13 +447,13 @@ function renderAnnotationForm(task) {
                         placeholder="可选输入备注..." style="min-height: 60px;"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button class="btn btn-success" onclick="submitAnnotation('${task.qa_id}')">
+                    <button class="btn btn-success" onclick="submitAnnotation('${data.data_id}')">
                         提交标注
                     </button>
-                    <button class="btn btn-secondary" onclick="approveTask('${task.qa_id}')">
+                    <button class="btn btn-secondary" onclick="approveData('${data.data_id}')">
                         通过
                     </button>
-                    <button class="btn btn-danger" onclick="rejectTask('${task.qa_id}')">
+                    <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
                         拒绝
                     </button>
                 </div>
@@ -430,7 +463,7 @@ function renderAnnotationForm(task) {
 }
 
 // 提交标注
-async function submitAnnotation(qaId) {
+async function submitAnnotation(dataId) {
     const content = document.getElementById('annotationContent')?.value;
     const score = document.getElementById('annotationScore')?.value;
     const comment = document.getElementById('annotationComment')?.value;
@@ -441,7 +474,7 @@ async function submitAnnotation(qaId) {
     }
     
     try {
-        await apiPut(`/tasks/${qaId}/annotate`, {
+        await apiPut(`/data/${dataId}/annotate`, {
             status: 'annotated',
             annotation: {
                 content: content,
@@ -453,7 +486,7 @@ async function submitAnnotation(qaId) {
         
         showToast('标注成功', 'success');
         closeDrawer();
-        loadTasks(state.currentPage);
+        loadData(state.currentPage);
         loadStats();
     } catch (error) {
         console.error('标注失败:', error);
@@ -461,13 +494,13 @@ async function submitAnnotation(qaId) {
     }
 }
 
-// 通过任务
-async function approveTask(qaId) {
+// 通过数据
+async function approveData(dataId) {
     try {
-        await apiPost(`/tasks/${qaId}/approve`, {});
+        await apiPost(`/data/${dataId}/approve`, {});
         showToast('已通过', 'success');
         closeDrawer();
-        loadTasks(state.currentPage);
+        loadData(state.currentPage);
         loadStats();
     } catch (error) {
         console.error('操作失败:', error);
@@ -475,13 +508,13 @@ async function approveTask(qaId) {
     }
 }
 
-// 拒绝任务
-async function rejectTask(qaId) {
+// 拒绝数据
+async function rejectData(dataId) {
     try {
-        await apiPost(`/tasks/${qaId}/reject`, {});
+        await apiPost(`/data/${dataId}/reject`, {});
         showToast('已拒绝', 'success');
         closeDrawer();
-        loadTasks(state.currentPage);
+        loadData(state.currentPage);
         loadStats();
     } catch (error) {
         console.error('操作失败:', error);
@@ -499,7 +532,7 @@ function openDrawer() {
 function closeDrawer() {
     document.getElementById('drawerOverlay').classList.remove('active');
     document.getElementById('detailDrawer').classList.remove('active');
-    state.selectedTask = null;
+    state.selectedData = null;
 }
 
 // 展开/收起侧边栏区域
@@ -523,12 +556,12 @@ function toggleSection(sectionId) {
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
     loadStats();
-    loadTasks();
+    loadData();
     
     // 监听过滤条件变化
     const filterInputs = document.querySelectorAll('.filter-input, .filter-select');
     filterInputs.forEach(input => {
-        input.addEventListener('change', () => loadTasks(1));
+        input.addEventListener('change', () => loadData(1));
     });
 });
 
@@ -536,10 +569,11 @@ document.addEventListener('DOMContentLoaded', () => {
 window.changePage = changePage;
 window.applyFilters = applyFilters;
 window.resetFilters = resetFilters;
-window.viewTask = viewTask;
+window.viewData = viewData;
 window.submitAnnotation = submitAnnotation;
-window.approveTask = approveTask;
-window.rejectTask = rejectTask;
+window.approveData = approveData;
+window.rejectData = rejectData;
 window.closeDrawer = closeDrawer;
 window.toggleSection = toggleSection;
 window.debounce = debounce;
+
