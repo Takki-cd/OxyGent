@@ -4,20 +4,19 @@ Provides storage, query, and statistical functions for conversation evaluation d
 """
 
 import logging
-import json
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from .config import Config
+from .databases.db_es import JesEs, LocalEs
 from .db_factory import DBFactory
-from .databases.db_es import JesEs,LocalEs
 from .schemas.evaluation import (
     ConversationRating,
     RatingRequest,
+    RatingResponse,
     RatingStats,
     RatingType,
-    RatingResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class EvaluationManager:
             dislike_count=0,
             total_ratings=0,
             satisfaction_rate=0.0,
-            last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
         )
 
     def _get_hits_total(self, response: Optional[Dict[str, Any]]) -> int:
@@ -104,7 +103,9 @@ class EvaluationManager:
                 return self.db_factory.get_instance(JesEs, hosts, user, password)
 
         # Fallback to LocalEs if JesEs is not properly configured
-        logger.info("JesEs config not found or incomplete, using LocalEs for evaluation_manager")
+        logger.info(
+            "JesEs config not found or incomplete, using LocalEs for evaluation_manager"
+        )
         return self.db_factory.get_instance(LocalEs)
 
     def _get_client_ip(self, request) -> Optional[str]:
@@ -120,7 +121,7 @@ class EvaluationManager:
             # Try to get IP from FastAPI request
             forwarded_for = request.headers.get("X-Forwarded-For")
             if forwarded_for:
-                return forwarded_for.split(',')[0].strip()
+                return forwarded_for.split(",")[0].strip()
 
             real_ip = request.headers.get("X-Real-IP")
             if real_ip:
@@ -139,14 +140,18 @@ class EvaluationManager:
             index_name: Name of the index to refresh
         """
         try:
-            if hasattr(es_client, 'client') and hasattr(es_client.client.indices, 'refresh'):
+            if hasattr(es_client, "client") and hasattr(
+                es_client.client.indices, "refresh"
+            ):
                 await es_client.client.indices.refresh(index=index_name)
-            elif hasattr(es_client, 'refresh_index'):
+            elif hasattr(es_client, "refresh_index"):
                 await es_client.refresh_index(index_name)
         except Exception as e:
             logger.warning(f"Failed to refresh index {index_name}: {e}")
 
-    async def create_rating(self, rating_request: RatingRequest, request=None, user_id: Optional[str] = None) -> RatingResponse:
+    async def create_rating(
+        self, rating_request: RatingRequest, request=None, user_id: Optional[str] = None
+    ) -> RatingResponse:
         """Create a new rating record (multiple rating records allowed per conversation).
 
         Args:
@@ -167,9 +172,13 @@ class EvaluationManager:
                 logger.warning(f"Error ensuring indexes exist: {e}")
 
             # Check if conversation exists (warning only, doesn't block rating)
-            trace_exists = await self._check_trace_exists(es_client, rating_request.trace_id)
+            trace_exists = await self._check_trace_exists(
+                es_client, rating_request.trace_id
+            )
             if not trace_exists:
-                logger.warning(f"Trace does not exist: {rating_request.trace_id}, but allowing rating to continue")
+                logger.warning(
+                    f"Trace does not exist: {rating_request.trace_id}, but allowing rating to continue"
+                )
 
             # Create new rating record
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -183,15 +192,11 @@ class EvaluationManager:
                 user_ip=self._get_client_ip(request) if request else None,
                 comment=rating_request.comment,
                 erp=rating_request.erp,
-                create_time=current_time
+                create_time=current_time,
             )
 
             # Store new rating record using rating_id as document ID to ensure uniqueness
-            await es_client.index(
-                self.rating_index,
-                rating_id,
-                rating.dict()
-            )
+            await es_client.index(self.rating_index, rating_id, rating.dict())
 
             # Refresh index to ensure data is immediately queryable
             await self._refresh_index(es_client, self.rating_index)
@@ -200,22 +205,19 @@ class EvaluationManager:
             stats = await self._update_rating_stats(
                 es_client,
                 rating_request.trace_id,
-                known_rating_type=rating_request.rating_type
+                known_rating_type=rating_request.rating_type,
             )
 
             return RatingResponse(
                 success=True,
                 rating_id=rating_id,
                 current_stats=stats,
-                message="Rating successful"
+                message="Rating successful",
             )
 
         except Exception as e:
             logger.error(f"Failed to create/update rating: {str(e)}")
-            return RatingResponse(
-                success=False,
-                message=f"Rating failed: {str(e)}"
-            )
+            return RatingResponse(success=False, message=f"Rating failed: {str(e)}")
 
     async def _ensure_rating_indexes(self, es_client) -> None:
         """Ensure rating-related indexes exist, create if not present.
@@ -223,15 +225,12 @@ class EvaluationManager:
         Args:
             es_client: ES client instance
         """
-        if not hasattr(es_client, 'create_index'):
+        if not hasattr(es_client, "create_index"):
             return  # Client doesn't support index creation, skip
 
         # Rating record index mapping
         rating_mapping = {
-            "settings": {
-                "number_of_shards": 1,
-                "number_of_replicas": 0
-            },
+            "settings": {"number_of_shards": 1, "number_of_replicas": 0},
             "mappings": {
                 "properties": {
                     "rating_id": {"type": "keyword"},
@@ -242,17 +241,14 @@ class EvaluationManager:
                     "comment": {"type": "text"},
                     "erp": {"type": "keyword"},
                     "create_time": {"type": "keyword"},
-                    "update_time": {"type": "keyword"}
+                    "update_time": {"type": "keyword"},
                 }
-            }
+            },
         }
 
         # Rating statistics index mapping
         rating_stats_mapping = {
-            "settings": {
-                "number_of_shards": 1,
-                "number_of_replicas": 0
-            },
+            "settings": {"number_of_shards": 1, "number_of_replicas": 0},
             "mappings": {
                 "properties": {
                     "trace_id": {"type": "keyword"},
@@ -260,9 +256,9 @@ class EvaluationManager:
                     "dislike_count": {"type": "integer"},
                     "total_ratings": {"type": "integer"},
                     "satisfaction_rate": {"type": "float"},
-                    "last_updated": {"type": "keyword"}
+                    "last_updated": {"type": "keyword"},
                 }
-            }
+            },
         }
 
         try:
@@ -288,21 +284,17 @@ class EvaluationManager:
         try:
             trace_index = f"{self.app_name}_trace"
 
-            # Query using trace_id.keyword field
+            # Query using trace_id field
             response = await es_client.search(
-                trace_index,
-                {
-                    "query": {
-                        "term": {"trace_id.keyword": trace_id}
-                    },
-                    "size": 1
-                }
+                trace_index, {"query": {"term": {"trace_id": trace_id}}, "size": 1}
             )
             exists = self._get_hits_total(response) > 0
 
             # Log warning if not found, but don't block rating (trace data may be delayed)
             if not exists:
-                logger.warning(f"Trace record not found: {trace_id}, but allowing rating to continue (possible data delay)")
+                logger.warning(
+                    f"Trace record not found: {trace_id}, but allowing rating to continue (possible data delay)"
+                )
 
             return exists
         except Exception as e:
@@ -310,7 +302,9 @@ class EvaluationManager:
             # If check fails, return True to allow rating to continue
             return True
 
-    async def _update_rating_stats(self, es_client, trace_id: str, known_rating_type: Optional[str] = None) -> RatingStats:
+    async def _update_rating_stats(
+        self, es_client, trace_id: str, known_rating_type: Optional[str] = None
+    ) -> RatingStats:
         """Update rating statistics by aggregating all rating records.
 
         Args:
@@ -330,15 +324,14 @@ class EvaluationManager:
             # Query all rating records for this conversation
             response = await es_client.search(
                 self.rating_index,
-                {
-                    "query": {"term": {"trace_id": trace_id}},
-                    "size": 1000
-                }
+                {"query": {"term": {"trace_id": trace_id}}, "size": 1000},
             )
 
             # Return default stats if no data found
             if response is None:
-                logger.warning(f"No rating data found for trace_id {trace_id} (index may not exist)")
+                logger.warning(
+                    f"No rating data found for trace_id {trace_id} (index may not exist)"
+                )
                 return self._create_empty_stats(trace_id)
 
             total_ratings = self._get_hits_total(response)
@@ -354,7 +347,9 @@ class EvaluationManager:
                     dislike_count += 1
 
             # Calculate satisfaction rate percentage
-            satisfaction_rate = (like_count / total_ratings * 100.0) if total_ratings > 0 else 0.0
+            satisfaction_rate = (
+                (like_count / total_ratings * 100.0) if total_ratings > 0 else 0.0
+            )
 
             # Create statistics object
             stats = RatingStats(
@@ -363,15 +358,11 @@ class EvaluationManager:
                 dislike_count=dislike_count,
                 total_ratings=total_ratings,
                 satisfaction_rate=satisfaction_rate,
-                last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
             )
 
             # Store or update statistics
-            await es_client.index(
-                self.rating_stats_index,
-                trace_id,
-                stats.dict()
-            )
+            await es_client.index(self.rating_stats_index, trace_id, stats.dict())
 
             # Force refresh index to ensure data is immediately searchable
             await self._refresh_index(es_client, self.rating_stats_index)
@@ -379,7 +370,10 @@ class EvaluationManager:
             return stats
 
         except Exception as e:
-            logger.error(f"Failed to update rating stats for trace_id={trace_id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to update rating stats for trace_id={trace_id}: {e}",
+                exc_info=True,
+            )
             # Return empty stats to avoid crash
             return self._create_empty_stats(trace_id)
 
@@ -397,10 +391,7 @@ class EvaluationManager:
 
             response = await es_client.search(
                 self.rating_stats_index,
-                {
-                    "query": {"term": {"trace_id": trace_id}},
-                    "size": 1
-                }
+                {"query": {"term": {"trace_id": trace_id}}, "size": 1},
             )
 
             if response is None:
@@ -417,7 +408,9 @@ class EvaluationManager:
             logger.error(f"Failed to get rating stats for {trace_id}: {e}")
             return None
 
-    async def get_ratings_for_traces(self, trace_ids: List[str]) -> Dict[str, RatingStats]:
+    async def get_ratings_for_traces(
+        self, trace_ids: List[str]
+    ) -> Dict[str, RatingStats]:
         """Batch retrieve rating statistics for multiple conversations.
 
         Args:
@@ -434,16 +427,11 @@ class EvaluationManager:
 
             response = await es_client.search(
                 self.rating_stats_index,
-                {
-                    "query": {
-                        "terms": {"trace_id": trace_ids}
-                    },
-                    "size": 10000
-                }
+                {"query": {"terms": {"trace_id": trace_ids}}, "size": 10000},
             )
 
             if response is None:
-                logger.warning(f"Rating stats index not found when fetching batch stats")
+                logger.warning("Rating stats index not found when fetching batch stats")
                 return {}
 
             result = {}
@@ -458,7 +446,9 @@ class EvaluationManager:
             logger.error(f"Failed to get ratings for traces: {e}", exc_info=True)
             return {}
 
-    async def get_rating_history(self, trace_id: str, erp: Optional[str] = None) -> List[ConversationRating]:
+    async def get_rating_history(
+        self, trace_id: str, erp: Optional[str] = None
+    ) -> List[ConversationRating]:
         """Get all rating history records for a conversation.
 
         Args:
@@ -472,27 +462,21 @@ class EvaluationManager:
             es_client = await self._get_es_client()
 
             # Build query conditions
-            query = {
-                "bool": {
-                    "must": [{"term": {"trace_id": trace_id}}]
-                }
-            }
-            
+            query = {"bool": {"must": [{"term": {"trace_id": trace_id}}]}}
+
             # Add ERP filter condition if specified
             if erp:
                 query["bool"]["must"].append({"term": {"erp": erp}})
 
             response = await es_client.search(
-                self.rating_index,
-                {
-                    "query": query,
-                    "size": 1000
-                }
+                self.rating_index, {"query": query, "size": 1000}
             )
 
             # Check if response is None (index doesn't exist or search failed)
             if response is None:
-                logger.warning(f"No rating data found for trace_id {trace_id} (index may not exist)")
+                logger.warning(
+                    f"No rating data found for trace_id {trace_id} (index may not exist)"
+                )
                 return []
 
             ratings = []
@@ -506,10 +490,14 @@ class EvaluationManager:
             return ratings
 
         except Exception as e:
-            logger.error(f"Failed to get rating history for {trace_id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to get rating history for {trace_id}: {e}", exc_info=True
+            )
             return []
 
-    async def get_rating_histories_for_traces(self, trace_ids: List[str]) -> Dict[str, List[ConversationRating]]:
+    async def get_rating_histories_for_traces(
+        self, trace_ids: List[str]
+    ) -> Dict[str, List[ConversationRating]]:
         """Batch retrieve rating history records for multiple conversations.
 
         Args:
@@ -527,16 +515,14 @@ class EvaluationManager:
             response = await es_client.search(
                 self.rating_index,
                 {
-                    "query": {
-                        "terms": {"trace_id": trace_ids}
-                    },
+                    "query": {"terms": {"trace_id": trace_ids}},
                     "size": 10000,  # ES max_result_window default limit
-                    "sort": [{"create_time": {"order": "desc"}}]
-                }
+                    "sort": [{"create_time": {"order": "desc"}}],
+                },
             )
 
             if response is None:
-                logger.warning(f"No rating data found when fetching batch histories")
+                logger.warning("No rating data found when fetching batch histories")
                 return {}
 
             # Group by trace_id
@@ -545,7 +531,7 @@ class EvaluationManager:
                 data = hit["_source"]
                 trace_id = data["trace_id"]
                 rating = ConversationRating(**data)
-                
+
                 if trace_id not in result:
                     result[trace_id] = []
                 result[trace_id].append(rating)
@@ -557,7 +543,9 @@ class EvaluationManager:
             return result
 
         except Exception as e:
-            logger.error(f"Failed to get rating histories for traces: {e}", exc_info=True)
+            logger.error(
+                f"Failed to get rating histories for traces: {e}", exc_info=True
+            )
             return {}
 
     async def delete_rating(self, rating_id: str) -> bool:
@@ -575,20 +563,14 @@ class EvaluationManager:
             # First try to find record by rating_id
             response = await es_client.search(
                 self.rating_index,
-                {
-                    "query": {"term": {"rating_id": rating_id}},
-                    "size": 1
-                }
+                {"query": {"term": {"rating_id": rating_id}}, "size": 1},
             )
 
             if response is None or self._get_hits_total(response) == 0:
                 # If not found by rating_id, try searching as trace_id
                 response = await es_client.search(
                     self.rating_index,
-                    {
-                        "query": {"term": {"trace_id.keyword": rating_id}},
-                        "size": 1
-                    }
+                    {"query": {"term": {"trace_id": rating_id}}, "size": 1},
                 )
 
             if response is None or self._get_hits_total(response) == 0:
@@ -636,24 +618,21 @@ class EvaluationManager:
                 {
                     "query": {
                         "range": {
-                            "create_time": {
-                                "gte": start_date_str,
-                                "lte": end_date_str
-                            }
+                            "create_time": {"gte": start_date_str, "lte": end_date_str}
                         }
                     },
-                    "size": 10000
-                }
+                    "size": 10000,
+                },
             )
 
             if response is None:
-                logger.warning(f"Rating index not found when generating trend report")
+                logger.warning("Rating index not found when generating trend report")
                 return {
                     "total_ratings": 0,
                     "like_count": 0,
                     "dislike_count": 0,
                     "like_rate": 0.0,
-                    "daily_stats": {}
+                    "daily_stats": {},
                 }
 
             total_ratings = 0
@@ -677,7 +656,9 @@ class EvaluationManager:
                     daily_stats[date_str] = {"like": 0, "dislike": 0}
                 daily_stats[date_str][data["rating_type"]] += 1
 
-            overall_satisfaction = (like_count / total_ratings * 100) if total_ratings > 0 else 0.0
+            overall_satisfaction = (
+                (like_count / total_ratings * 100) if total_ratings > 0 else 0.0
+            )
 
             return {
                 "total_ratings": total_ratings,
@@ -688,8 +669,8 @@ class EvaluationManager:
                 "time_range": {
                     "start_date": start_date_str,
                     "end_date": end_date_str,
-                    "days": days
-                }
+                    "days": days,
+                },
             }
 
         except Exception as e:
@@ -700,7 +681,7 @@ class EvaluationManager:
                 "dislike_count": 0,
                 "satisfaction_rate": 0.0,
                 "daily_stats": {},
-                "error": str(e)
+                "error": str(e),
             }
 
     async def clear_all_rating_data(self) -> Dict[str, Any]:
@@ -715,28 +696,32 @@ class EvaluationManager:
                 "success": True,
                 "deleted_ratings": 0,
                 "deleted_stats": 0,
-                "errors": []
+                "errors": [],
             }
 
             # Delete all rating records
             try:
                 rating_response = await es_client.search(
-                    self.rating_index,
-                    {
-                        "query": {"match_all": {}},
-                        "size": 1000
-                    }
+                    self.rating_index, {"query": {"match_all": {}}, "size": 1000}
                 )
                 rating_count = self._get_hits_total(rating_response)
 
                 if rating_count > 0:
                     # Delete rating index
-                    if hasattr(es_client, 'client') and hasattr(es_client.client, 'indices'):
-                        await es_client.client.indices.delete(index=self.rating_index, ignore=[400, 404])
+                    if hasattr(es_client, "client") and hasattr(
+                        es_client.client, "indices"
+                    ):
+                        await es_client.client.indices.delete(
+                            index=self.rating_index, ignore=[400, 404]
+                        )
                         result["deleted_ratings"] = rating_count
-                        logger.info(f"Deleted rating index {self.rating_index}, total {rating_count} records")
+                        logger.info(
+                            f"Deleted rating index {self.rating_index}, total {rating_count} records"
+                        )
                     else:
-                        result["errors"].append("ES client does not support index deletion")
+                        result["errors"].append(
+                            "ES client does not support index deletion"
+                        )
 
             except Exception as e:
                 error_msg = f"Failed to delete rating records: {str(e)}"
@@ -746,22 +731,26 @@ class EvaluationManager:
             # Delete all rating statistics
             try:
                 stats_response = await es_client.search(
-                    self.rating_stats_index,
-                    {
-                        "query": {"match_all": {}},
-                        "size": 1000
-                    }
+                    self.rating_stats_index, {"query": {"match_all": {}}, "size": 1000}
                 )
                 stats_count = self._get_hits_total(stats_response)
 
                 if stats_count > 0:
                     # Delete statistics index
-                    if hasattr(es_client, 'client') and hasattr(es_client.client, 'indices'):
-                        await es_client.client.indices.delete(index=self.rating_stats_index, ignore=[400, 404])
+                    if hasattr(es_client, "client") and hasattr(
+                        es_client.client, "indices"
+                    ):
+                        await es_client.client.indices.delete(
+                            index=self.rating_stats_index, ignore=[400, 404]
+                        )
                         result["deleted_stats"] = stats_count
-                        logger.info(f"Deleted statistics index {self.rating_stats_index}, total {stats_count} records")
+                        logger.info(
+                            f"Deleted statistics index {self.rating_stats_index}, total {stats_count} records"
+                        )
                     else:
-                        result["errors"].append("ES client does not support index deletion")
+                        result["errors"].append(
+                            "ES client does not support index deletion"
+                        )
 
             except Exception as e:
                 error_msg = f"Failed to delete rating statistics: {str(e)}"
@@ -779,7 +768,7 @@ class EvaluationManager:
                 "success": False,
                 "deleted_ratings": 0,
                 "deleted_stats": 0,
-                "errors": [f"Clear failed: {str(e)}"]
+                "errors": [f"Clear failed: {str(e)}"],
             }
 
     async def ensure_rating_indices_with_correct_mapping(self) -> Dict[str, Any]:
@@ -794,15 +783,12 @@ class EvaluationManager:
                 "success": True,
                 "rating_index_created": False,
                 "rating_stats_index_created": False,
-                "errors": []
+                "errors": [],
             }
 
             # Rating record index mapping
             rating_mapping = {
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0
-                },
+                "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "properties": {
                         "rating_id": {"type": "keyword"},
@@ -813,17 +799,14 @@ class EvaluationManager:
                         "comment": {"type": "text"},
                         "erp": {"type": "keyword"},
                         "create_time": {"type": "keyword"},
-                        "update_time": {"type": "keyword"}
+                        "update_time": {"type": "keyword"},
                     }
-                }
+                },
             }
 
             # Rating statistics index mapping
             rating_stats_mapping = {
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0
-                },
+                "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "properties": {
                         "trace_id": {"type": "keyword"},
@@ -831,20 +814,24 @@ class EvaluationManager:
                         "dislike_count": {"type": "integer"},
                         "total_ratings": {"type": "integer"},
                         "satisfaction_rate": {"type": "float"},
-                        "last_updated": {"type": "keyword"}
+                        "last_updated": {"type": "keyword"},
                     }
-                }
+                },
             }
 
             # Create rating record index
             try:
-                if hasattr(es_client, 'create_index'):
-                    rating_result = await es_client.create_index(self.rating_index, rating_mapping)
+                if hasattr(es_client, "create_index"):
+                    rating_result = await es_client.create_index(
+                        self.rating_index, rating_mapping
+                    )
                     if not rating_result.get("already_exists", False):
                         result["rating_index_created"] = True
                         logger.info(f"Created rating record index: {self.rating_index}")
                     else:
-                        logger.info(f"Rating record index already exists: {self.rating_index}")
+                        logger.info(
+                            f"Rating record index already exists: {self.rating_index}"
+                        )
                 else:
                     result["errors"].append("ES client does not support index creation")
             except Exception as e:
@@ -854,13 +841,19 @@ class EvaluationManager:
 
             # Create rating statistics index
             try:
-                if hasattr(es_client, 'create_index'):
-                    stats_result = await es_client.create_index(self.rating_stats_index, rating_stats_mapping)
+                if hasattr(es_client, "create_index"):
+                    stats_result = await es_client.create_index(
+                        self.rating_stats_index, rating_stats_mapping
+                    )
                     if not stats_result.get("already_exists", False):
                         result["rating_stats_index_created"] = True
-                        logger.info(f"Created rating statistics index: {self.rating_stats_index}")
+                        logger.info(
+                            f"Created rating statistics index: {self.rating_stats_index}"
+                        )
                     else:
-                        logger.info(f"Rating statistics index already exists: {self.rating_stats_index}")
+                        logger.info(
+                            f"Rating statistics index already exists: {self.rating_stats_index}"
+                        )
                 else:
                     result["errors"].append("ES client does not support index creation")
             except Exception as e:
@@ -879,5 +872,5 @@ class EvaluationManager:
                 "success": False,
                 "rating_index_created": False,
                 "rating_stats_index_created": False,
-                "errors": [f"Operation failed: {str(e)}"]
+                "errors": [f"Operation failed: {str(e)}"],
             }
