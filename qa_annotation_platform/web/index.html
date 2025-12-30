@@ -7,13 +7,13 @@
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QA标注平台 - OxyGent</title>
-    <link rel="stylesheet" href="./css/style.css?v=2">
-    <link rel="stylesheet" href="./css/annotation.css?v=2">
+    <link rel="stylesheet" href="./css/style.css?v=4">
+    <link rel="stylesheet" href="./css/annotation.css?v=3">
 </head>
 <body>
-    <div class="qa-wrapper">
+    <div class="annotation-wrapper">
         <!-- 顶部导航 -->
-        <header class="qa-header">
+        <header class="annotation-header">
             <div class="logo">
                 <h1>QA标注平台</h1>
             </div>
@@ -25,9 +25,12 @@
         </header>
 
         <!-- 主体内容 -->
-        <main class="qa-body">
+        <main class="annotation-body">
             <!-- 左侧边栏 -->
-            <aside class="qa-sidebar">
+            <aside class="annotation-sidebar" id="annotationSidebar">
+                <!-- 拖拽调整宽度 -->
+                <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
+
                 <!-- 全局过滤条件 -->
                 <div class="sidebar-section global-filter-section">
                     <div class="sidebar-section-header" onclick="toggleSection('globalFilter')">
@@ -35,9 +38,16 @@
                         <span class="toggle-icon" id="globalFilterToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="globalFilterContent">
-                        <!-- 数据类型 -->
+                        <!-- 时间范围 -->
                         <div class="filter-group">
-                            <div class="filter-group-title">数据类型</div>
+                            <div class="filter-group-title">时间范围</div>
+                            <input type="datetime-local" id="filterStartTime" class="filter-input-full">
+                            <input type="datetime-local" id="filterEndTime" class="filter-input-full" style="margin-top: 8px;">
+                        </div>
+
+                        <!-- 数据类型 + 快速筛选 -->
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <div class="filter-group-title">类型与状态</div>
                             <select class="filter-select-full" id="filterDataType" onchange="applyFilters()">
                                 <option value="">全部类型</option>
                                 <option value="e2e">端到端</option>
@@ -46,32 +56,7 @@
                                 <option value="tool">Tool</option>
                                 <option value="custom">自定义</option>
                             </select>
-                        </div>
-
-                        <!-- 调用链过滤 -->
-                        <div class="filter-group">
-                            <div class="filter-group-title">Caller</div>
-                            <input type="text" class="filter-input-full" id="filterCaller" 
-                                placeholder="过滤Caller..." oninput="debounce(applyFilters, 500)()">
-                        </div>
-
-                        <div class="filter-group" style="margin-top: 8px;">
-                            <div class="filter-group-title">Callee</div>
-                            <input type="text" class="filter-input-full" id="filterCallee" 
-                                placeholder="过滤Callee..." oninput="debounce(applyFilters, 500)()">
-                        </div>
-
-                        <!-- 时间范围 -->
-                        <div class="filter-group" style="margin-top: 8px;">
-                            <div class="filter-group-title">时间范围</div>
-                            <input type="datetime-local" id="filterStartTime" class="filter-input-full">
-                            <input type="datetime-local" id="filterEndTime" class="filter-input-full" style="margin-top: 8px;">
-                        </div>
-
-                        <!-- 快速筛选 -->
-                        <div class="filter-group">
-                            <div class="filter-group-title">快速筛选</div>
-                            <select class="filter-select-full" id="filterStatus" onchange="applyFilters()">
+                            <select class="filter-select-full" id="filterStatus" onchange="applyFilters()" style="margin-top: 8px;">
                                 <option value="">全部状态</option>
                                 <option value="pending">待标注</option>
                                 <option value="annotated">已标注</option>
@@ -88,19 +73,46 @@
                             </select>
                         </div>
 
-                        <!-- P0筛选 -->
+                        <!-- Caller -->
                         <div class="filter-group" style="margin-top: 8px;">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="filterShowP0Only" onchange="applyFilters()">
-                                <span>只显示P0（端到端）</span>
-                            </label>
+                            <div class="filter-group-title">Caller</div>
+                            <div class="search-input-wrapper">
+                                <input type="text" class="filter-input-full" id="filterCaller" placeholder="输入Caller...">
+                                <span class="search-icon" onclick="doSearch('caller')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Callee -->
+                        <div class="filter-group" style="margin-top: 8px;">
+                            <div class="filter-group-title">Callee</div>
+                            <div class="search-input-wrapper">
+                                <input type="text" class="filter-input-full" id="filterCallee" placeholder="输入Callee...">
+                                <span class="search-icon" onclick="doSearch('callee')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </span>
+                            </div>
                         </div>
 
                         <!-- 全文搜索 -->
-                        <div class="filter-group">
+                        <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">搜索</div>
-                            <input type="text" class="filter-input-full" id="filterSearch" 
-                                placeholder="搜索QA内容..." oninput="debounce(applyFilters, 500)()">
+                            <div class="search-input-wrapper">
+                                <input type="text" class="filter-input-full" id="filterSearch" placeholder="搜索QA内容...">
+                                <span class="search-icon" onclick="doSearch('content')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </span>
+                            </div>
                         </div>
 
                         <!-- 操作按钮 -->
@@ -122,47 +134,47 @@
                         <span class="toggle-icon" id="progressToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="progressContent">
-                        <div class="progress-section">
-                            <div class="progress-stats-grid">
-                                <div class="progress-stat pending">
-                                    <div class="progress-stat-value" id="statPending">0</div>
-                                    <div class="progress-stat-label">待标注</div>
-                                </div>
-                                <div class="progress-stat annotated">
-                                    <div class="progress-stat-value" id="statAnnotated">0</div>
-                                    <div class="progress-stat-label">已标注</div>
-                                </div>
-                                <div class="progress-stat approved">
-                                    <div class="progress-stat-value" id="statApproved">0</div>
-                                    <div class="progress-stat-label">已通过</div>
-                                </div>
+                        <!-- 2x2统计块 -->
+                        <div class="stats-grid-2x2">
+                            <div class="stat-block pending">
+                                <div class="stat-value" id="statPending">0</div>
+                                <div class="stat-label">待标注</div>
                             </div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar-label">标注进度</div>
-                                <div class="progress-bar-track">
-                                    <div class="progress-bar-fill approved" id="progressApproved" style="width: 0%"></div>
-                                    <div class="progress-bar-fill annotated" id="progressAnnotated" style="width: 0%"></div>
-                                    <div class="progress-bar-fill pending" id="progressPending" style="width: 100%"></div>
-                                </div>
-                                <div class="progress-bar-legend">
-                                    <span class="legend-item"><span class="legend-dot approved"></span>已通过</span>
-                                    <span class="legend-item"><span class="legend-dot annotated"></span>已标注</span>
-                                    <span class="legend-item"><span class="legend-dot pending"></span>待标注</span>
-                                </div>
+                            <div class="stat-block annotated">
+                                <div class="stat-value" id="statAnnotated">0</div>
+                                <div class="stat-label">已标注</div>
+                            </div>
+                            <div class="stat-block approved">
+                                <div class="stat-value" id="statApproved">0</div>
+                                <div class="stat-label">已通过</div>
+                            </div>
+                            <div class="stat-block rejected">
+                                <div class="stat-value" id="statRejected">0</div>
+                                <div class="stat-label">已拒绝</div>
                             </div>
                         </div>
-
-                        <!-- 拒绝数量 -->
-                        <div class="rejected-section">
-                            <span class="rejected-label">已拒绝</span>
-                            <span class="rejected-value" id="statRejected">0</span>
+                        <!-- 进度条 -->
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-label">标注进度</div>
+                            <div class="progress-bar-track">
+                                <div class="progress-bar-fill approved" id="progressApproved" style="width: 0%"></div>
+                                <div class="progress-bar-fill annotated" id="progressAnnotated" style="width: 0%"></div>
+                                <div class="progress-bar-fill rejected" id="progressRejected" style="width: 0%"></div>
+                                <div class="progress-bar-fill pending" id="progressPending" style="width: 100%"></div>
+                            </div>
+                            <div class="progress-bar-legend">
+                                <span class="legend-item"><span class="legend-dot approved"></span>已通过</span>
+                                <span class="legend-item"><span class="legend-dot annotated"></span>已标注</span>
+                                <span class="legend-item"><span class="legend-dot rejected"></span>已拒绝</span>
+                                <span class="legend-item"><span class="legend-dot pending"></span>待标注</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </aside>
 
             <!-- 主内容区 - 数据列表 -->
-            <section class="qa-main">
+            <section class="annotation-main">
                 <div class="main-header">
                     <h2 class="main-title">数据列表</h2>
                     <div class="main-actions">
@@ -178,14 +190,15 @@
                     <table class="qa-table" id="qaTable">
                         <thead>
                             <tr>
-                                <th data-column="id" style="width: 140px;">ID</th>
-                                <th data-column="priority" style="width: 60px;">优先级</th>
-                                <th data-column="status" style="width: 80px;">状态</th>
-                                <th data-column="data_type" style="width: 80px;">类型</th>
-                                <th data-column="question" style="width: 35%;">Question</th>
-                                <th data-column="answer" style="width: 25%;">Answer</th>
-                                <th data-column="time" style="width: 100px;">时间</th>
-                                <th data-column="action" style="width: 60px;">操作</th>
+                                <th data-column="id" style="width: 160px;">ID</th>
+                                <th data-column="priority" style="width: 50px;">类型</th>
+                                <th data-column="status" style="width: 70px;">状态</th>
+                                <th data-column="data_type" style="width: 60px;">类型</th>
+                                <th data-column="caller_callee" style="width: 200px;">调用关系</th>
+                                <th data-column="question" style="width: 30%;">Question</th>
+                                <th data-column="group_trace" style="width: 160px;">Group / Trace</th>
+                                <th data-column="time" style="width: 140px;">时间</th>
+                                <th data-column="action" style="width: 70px;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="qaTableBody">
@@ -220,7 +233,7 @@
     <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
     <aside class="drawer" id="detailDrawer">
         <div class="drawer-header">
-            <h2 class="drawer-title">数据详情</h2>
+            <h2 class="drawer-title">数据标注</h2>
             <button class="drawer-close" onclick="closeDrawer()">×</button>
         </div>
         <div class="drawer-body" id="drawerBody">
@@ -228,6 +241,6 @@
         </div>
     </aside>
 
-    <script src="./js/annotation.js"></script>
+    <script src="./js/annotation.js?v=4"></script>
 </body>
 </html>
