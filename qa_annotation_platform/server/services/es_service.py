@@ -93,6 +93,9 @@ class ESService:
                     # 状态
                     "status": {"type": "keyword"},
                     
+                    # 拒绝原因
+                    "reject_reason": {"type": "text"},
+                    
                     # 标注结果
                     "annotation": {"type": "object", "enabled": True},
                     "scores": {"type": "object", "enabled": True},

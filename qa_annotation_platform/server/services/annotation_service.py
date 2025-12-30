@@ -195,12 +195,13 @@ class AnnotationService:
         )
         return {"success": success, "message": "已通过" if success else "失败"}
     
-    async def reject(self, data_id: str) -> Dict[str, Any]:
+    async def reject(self, data_id: str, reject_reason: str = None) -> Dict[str, Any]:
         """审核拒绝"""
-        success = await self.es_service.update_data(
-            data_id, 
-            {"status": DataStatus.REJECTED.value}
-        )
+        update_data = {
+            "status": DataStatus.REJECTED.value,
+            "reject_reason": reject_reason or ""
+        }
+        success = await self.es_service.update_data(data_id, update_data)
         return {"success": success, "message": "已拒绝" if success else "失败"}
 
 

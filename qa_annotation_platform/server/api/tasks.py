@@ -10,6 +10,7 @@
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from ..models import (
     DataFilter,
@@ -20,6 +21,11 @@ from ..services.annotation_service import get_annotation_service
 
 
 router = APIRouter(prefix="/api/v1/data", tags=["数据管理"])
+
+
+# 拒绝请求体模型
+class RejectRequest(BaseModel):
+    reject_reason: str = ""
 
 
 @router.get("")
@@ -195,12 +201,12 @@ async def approve_data(data_id: str):
 
 
 @router.post("/{data_id}/reject")
-async def reject_data(data_id: str):
+async def reject_data(data_id: str, request: RejectRequest):
     """
     审核拒绝
     """
     service = get_annotation_service()
-    result = await service.reject(data_id)
+    result = await service.reject(data_id, request.reject_reason)
     
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["message"])

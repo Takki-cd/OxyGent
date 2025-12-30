@@ -704,8 +704,24 @@ function renderDataDetail(data) {
         </div>
         ` : ''}
 
-        <!-- 标注表单 - 仅待标注状态显示 -->
+        <!-- 拒绝原因展示 - 只对rejected状态显示 -->
+        ${data.status === 'rejected' && data.reject_reason ? `
+        <div class="reject-reason-section">
+            <div class="section-header rejected">
+                <span class="section-icon">🚫</span>
+                <span class="section-title">拒绝原因</span>
+            </div>
+            <div class="reject-reason-content">
+                ${escapeHtml(data.reject_reason)}
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- 标注表单 - 只对pending状态显示标注表单 -->
         ${isPending ? renderAnnotationForm(data) : ''}
+        
+        <!-- 审核操作区 - 对annotated状态显示审核按钮 -->
+        ${isAnnotated ? renderReviewSection(data) : ''}
     `;
 }
 
@@ -728,6 +744,14 @@ function formatContent(content) {
         return `<pre>${JSON.stringify(JSON.parse(content), null, 2)}</pre>`;
     }
     return `<pre>${String(content)}</pre>`;
+}
+
+// XSS转义函数
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function renderAnnotation(annotation) {
@@ -778,25 +802,14 @@ function renderAnnotation(annotation) {
 
 function renderAnnotationForm(data) {
     const isPending = data.status === 'pending';
-    const isAnnotated = data.status === 'annotated';
     
     // 待标注状态只显示"提交标注"按钮
-    // 已标注状态显示"标注审核通过"和"标注审核拒绝"按钮
     let buttonsHtml = '';
     
     if (isPending) {
         buttonsHtml = `
             <button class="btn btn-primary" onclick="submitAnnotation('${data.data_id}')">
                 💾 提交标注
-            </button>
-        `;
-    } else if (isAnnotated) {
-        buttonsHtml = `
-            <button class="btn btn-success" onclick="approveData('${data.data_id}')">
-                ✅ 标注审核通过
-            </button>
-            <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
-                ❌ 标注审核拒绝
             </button>
         `;
     }
@@ -826,7 +839,7 @@ function renderAnnotationForm(data) {
             
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">质量评分</label>
+                    <label class="form-label">质量评分 <span class="required-mark">*</span></label>
                     <select class="form-select" id="qualityScore">
                         <option value="">请选择</option>
                         <option value="1">优秀 (1分)</option>
@@ -850,6 +863,26 @@ function renderAnnotationForm(data) {
     `;
 }
 
+// 审核操作区 - 只显示审核按钮，不显示标注表单
+function renderReviewSection(data) {
+    return `
+        <div class="review-section">
+            <div class="review-header">
+                <span class="review-icon">👁️</span>
+                <span class="review-title">标注审核</span>
+            </div>
+            <div class="review-actions">
+                <button class="btn btn-success" onclick="approveData('${data.data_id}')">
+                    ✅ 标注审核通过
+                </button>
+                <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
+                    ❌ 标注审核拒绝
+                </button>
+            </div>
+        </div>
+    `;
+}
+
 // ============================================================================
 // 标注操作
 // ============================================================================
@@ -860,8 +893,14 @@ async function submitAnnotation(dataId) {
     const score = document.getElementById('qualityScore')?.value;
     const comment = document.getElementById('annotationComment')?.value;
     
-    if (!question && !answer && !score) {
-        showToast('请至少填写一个标注内容', 'warning');
+    // 质量评分必选验证
+    if (!score) {
+        showToast('请选择质量评分', 'warning');
+        return;
+    }
+    
+    if (!question && !answer && !comment) {
+        showToast('请至少填写修正内容或备注', 'warning');
         return;
     }
     
@@ -871,10 +910,10 @@ async function submitAnnotation(dataId) {
             annotation: {
                 content: answer,
                 question: question,
-                score: score ? parseFloat(score) : null,
+                score: parseFloat(score),
                 comment: comment || ''
             },
-            scores: score ? { overall_score: parseFloat(score) } : {}
+            scores: { overall_score: parseFloat(score) }
         });
         
         showToast('标注成功', 'success');
@@ -901,11 +940,64 @@ async function approveData(dataId) {
 }
 
 async function rejectData(dataId) {
-    const comment = prompt('请输入拒绝原因:');
-    if (comment === null) return;
-    
+    // 显示自定义拒绝原因输入框
+    showRejectDialog(dataId);
+}
+
+// 显示拒绝原因输入对话框
+function showRejectDialog(dataId) {
+    const drawerBody = document.getElementById('drawerBody');
+
+    // 创建自定义对话框
+    const dialog = document.createElement('div');
+    dialog.className = 'reject-dialog-overlay';
+    dialog.innerHTML = `
+        <div class="reject-dialog">
+            <div class="reject-dialog-header">
+                <span>❌ 标注审核拒绝</span>
+                <button class="reject-dialog-close" onclick="closeRejectDialog()">×</button>
+            </div>
+            <div class="reject-dialog-body">
+                <label class="reject-dialog-label">请输入拒绝原因:</label>
+                <textarea id="rejectReason" class="reject-dialog-textarea" rows="4" placeholder="请输入拒绝原因..."></textarea>
+            </div>
+            <div class="reject-dialog-actions">
+                <button class="btn btn-secondary" onclick="closeRejectDialog()">取消</button>
+                <button class="btn btn-danger" onclick="confirmReject('${dataId}')">确认拒绝</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    // 聚焦到输入框
+    setTimeout(() => {
+        document.getElementById('rejectReason').focus();
+    }, 100);
+
+    // 点击遮罩关闭
+    dialog.addEventListener('click', function(e) {
+        if (e.target === dialog) {
+            closeRejectDialog();
+        }
+    });
+}
+
+// 关闭拒绝对话框
+function closeRejectDialog() {
+    const dialog = document.querySelector('.reject-dialog-overlay');
+    if (dialog) {
+        dialog.remove();
+    }
+}
+
+// 确认拒绝操作
+async function confirmReject(dataId) {
+    const rejectReason = document.getElementById('rejectReason')?.value || '';
+    closeRejectDialog();
+
     try {
-        await apiPost(`/data/${dataId}/reject`, { comment: comment || '' });
+        await apiPost(`/data/${dataId}/reject`, { reject_reason: rejectReason });
         showToast('已拒绝', 'success');
         closeDrawer();
         loadData(state.currentPage);
@@ -997,3 +1089,5 @@ window.toggleSection = toggleSection;
 window.doSearch = doSearch;
 window.handleFilterInput = handleFilterInput;
 window.handleSearchClick = handleSearchClick;
+window.closeRejectDialog = closeRejectDialog;
+window.confirmReject = confirmReject;

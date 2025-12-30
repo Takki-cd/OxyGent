@@ -294,6 +294,7 @@ class DataResponse(BaseModel):
     status: str
     annotation: Dict[str, Any]
     scores: Dict[str, Any]
+    reject_reason: str = ""  # 拒绝原因
     created_at: datetime
     updated_at: datetime
     
