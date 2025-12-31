@@ -1,10 +1,8 @@
 import uvicorn
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 app = FastAPI()
-
-router = APIRouter()
 
 
 class RetrievalRequest(BaseModel):
@@ -13,7 +11,7 @@ class RetrievalRequest(BaseModel):
     user_pin: str
 
 
-@router.post("/user_profile_retrieve")
+@app.post("/user_profile_retrieve")
 def user_profile_retrieve(request: RetrievalRequest):
     user_profile_dict = {
         "001": "Arlen, a student, likes music",
@@ -29,13 +27,13 @@ class DepositRequest(BaseModel):
     user_pin: str
 
 
-@router.post("/user_profile_deposit")
+@app.post("/user_profile_deposit")
 def user_profile_deposit(request: DepositRequest):
     print(request.content)
     return "updated user_profile"
 
 
-@router.get("/list_banks")
+@app.get("/list_banks")
 def list_banks():
     return [
         {

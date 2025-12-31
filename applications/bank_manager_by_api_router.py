@@ -6,7 +6,7 @@ app = FastAPI()
 router = APIRouter(tags=["bank"])
 
 
-@router.get("/user_profile_retrieve", description="A tool for querying user profile")
+@router.post("/user_profile_retrieve", description="A tool for querying user profile")
 def user_profile_retrieve(
     query: str = Body(description="query"),
     user_pin: str = Body(description="SystemArg.agent_pin"),
