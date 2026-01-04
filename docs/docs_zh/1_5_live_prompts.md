@@ -197,16 +197,67 @@ await hot_reload_prompt("time_agent_prompt")
 - 当 ES 不可用时，自动回退到 LocalEs（本地文件存储）
 - 通过 `Config` 系统配置数据库连接参数
 
+### 配置参数
+
+在 `config.json` 中添加以下配置：
+
+```json
+{
+  "live_prompt": {
+    "es_polling_interval": 2  // ES 轮询间隔（秒），默认值为 2
+  }
+}
+```
+
+**参数说明**：
+- **`es_polling_interval`**：ES 轮询间隔，单位为秒
+  - 默认值：`2`
+  - 适用场景：多实例部署时，控制不同实例间提示词同步的延迟时间
+  - 建议：根据实际需求调整，值越小同步越快，但会增加 ES 查询频率
+
+**通过代码配置**：
+
+```python
+from oxygent import Config
+
+# 设置 ES 轮询间隔为 5 秒
+Config.set_live_prompt_es_polling_interval(5)
+
+# 获取当前配置
+interval = Config.get_live_prompt_es_polling_interval()
+print(f"Current polling interval: {interval}s")
+```
+
+### 多实例部署要求
+
+**重要**：如果在多实例部署环境下使用动态提示词功能，**必须配置 Elasticsearch**。
+
+系统会根据配置自动检测同步机制：
+
+1. **ES 轮询（推荐）**：
+   - 配置要求：远程 Elasticsearch
+   - 优点：无需额外组件，基于现有 ES 存储
+   - 延迟：默认 2 秒轮询间隔（可通过 `live_prompt.es_polling_interval` 配置）
+
+2. **无同步机制**：
+   - 当 ES 为本地配置或未配置时
+   - **警告**：多实例环境下缓存不一致，不建议使用 live_prompt
+   - 仅适用于单实例部署
 
 ## 注意事项
 
 1. **向后兼容**：现有代码无需修改，默认启用 live prompt 功能
-2. **性能考虑**：
+2. **多实例部署**：
+   - 必须配置远程 ES 以保证缓存一致性
+   - 未配置时，多实例间缓存可能不一致
+3. **性能考虑**：
    - 提示词在初始化时从数据库加载一次，之后使用缓存
    - 禁用 live prompt 的 Agent 性能略好（不查询数据库）
-3. **错误处理**：当 live prompt 系统不可用时，自动使用代码中的 `prompt` 参数，确保系统稳定运行
-4. **版本管理**：系统会自动保存提示词的修改历史，支持版本回滚
-5. **灵活控制**：可以为每个 Agent 单独设置是否启用 live prompt
+   - ES 轮询模式：默认 2 秒延迟（可通过 `live_prompt.es_polling_interval` 调整）
+   - 轮询间隔越小，同步越快，但会增加 ES 查询负载
+4. **错误处理**：当 live prompt 系统不可用时，自动使用代码中的 `prompt` 参数，确保系统稳定运行
+5. **版本管理**：系统会自动保存提示词的修改历史，支持版本回滚
+6. **灵活控制**：可以为每个 Agent 单独设置是否启用 live prompt
 
 ## 常见问题
 
@@ -221,6 +272,35 @@ await hot_reload_prompt("time_agent_prompt")
 
 ### Q4: live prompt 会影响性能吗？
 **A**: 影响很小。只在初始化时访问一次数据库，之后使用缓存。如有极高性能要求，可禁用 live prompt。
+
+### Q5: 多实例部署时如何保证提示词同步？
+**A**: 必须配置远程 Elasticsearch。系统会通过 ES 轮询自动同步：
+- ES 轮询：默认 2 秒延迟同步（可配置）
+- 本地配置：无法跨实例同步，会显示警告
+
+### Q6: 如何知道当前使用的同步机制？
+**A**: 启动时查看日志输出：
+- `ES polling enabled for remote hosts: xxx` - 使用 ES 轮询
+- `ES polling not available` - 无同步机制（仅单实例）
+- `Starting ES polling with Xs interval` - 显示当前轮询间隔
+
+### Q7: 如何调整 ES 轮询间隔？
+**A**: 通过以下两种方式：
+
+**方式 1：在配置文件中设置**
+```json
+{
+  "live_prompt": {
+    "es_polling_interval": 5
+  }
+}
+```
+
+**方式 2：通过代码设置**
+```python
+from oxygent import Config
+Config.set_live_prompt_es_polling_interval(5)
+```
 
 ## 相关文档
 

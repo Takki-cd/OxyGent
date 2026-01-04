@@ -15,6 +15,14 @@ from .wrapper import (
     dynamic_agent_manager,
 )
 
+# Version synchronization for multi-instance cache consistency
+from .version import (
+    VersionSyncCoordinator,
+    get_version_sync_coordinator,
+    start_version_sync,
+    stop_version_sync,
+)
+
 __all__ = [
     # Core ES-based prompt management
     'get_prompt_manager',
@@ -27,4 +35,10 @@ __all__ = [
     'hot_reload_agent',
     'hot_reload_all_prompts',
     'dynamic_agent_manager',
+
+    # Version synchronization
+    'VersionSyncCoordinator',
+    'get_version_sync_coordinator',
+    'start_version_sync',
+    'stop_version_sync',
 ]

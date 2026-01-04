@@ -106,7 +106,7 @@ class DynamicAgentManager:
             if hasattr(agent_instance, "reload_prompt"):
                 success = await agent_instance.reload_prompt()
                 if success:
-                    logger.info(f"Hot-reloaded prompt for: {agent_name}")
+                    logger.debug(f"Hot-reloaded prompt for: {agent_name}")
                 return success
             # Fallback to old approach for backward compatibility
             elif hasattr(agent_instance, "prompt"):
@@ -184,8 +184,8 @@ class DynamicAgentManager:
             logger.info(
                 f"Prompt key update completed ({prompt_key}): {success_count}/{total_count} successful"
             )
-        else:
-            logger.warning(f"No agents found using prompt key: {prompt_key}")
+        # else:
+        #     logger.warning(f"No agents found using prompt key: {prompt_key}")
 
         return results
 

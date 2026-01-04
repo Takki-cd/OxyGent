@@ -81,6 +81,9 @@
             "is_concurrent_init": true,
             "semaphore": 1024,
             "timeout": 60
+        },
+        "live_prompt": {
+            "es_polling_interval": 2
         }
     },
     "dev": {

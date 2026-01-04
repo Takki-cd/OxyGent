@@ -116,7 +116,7 @@ class HttpLLM(RemoteLLM):
                                 },
                             )
                         if use_openai:
-                            if chunk["choices"]:
+                            if chunk.get("choices"):
                                 delta = chunk["choices"][0]["delta"].get(
                                     "content", ""
                                 ) or chunk["choices"][0]["delta"].get(
