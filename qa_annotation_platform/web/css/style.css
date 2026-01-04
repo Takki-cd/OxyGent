@@ -58,7 +58,7 @@ body {
 
 /* Left Sidebar */
 .annotation-sidebar {
-    width: 280px;
+    width: 320px;
     background: #fff;
     border-right: 1px solid #E8E8EB;
     display: flex;
@@ -761,9 +761,9 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
     .annotation-sidebar {
-        width: 260px;
+        width: 280px;
     }
 }
 

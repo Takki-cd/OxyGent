@@ -28,7 +28,7 @@ let state = {
         rejected: 0
     },
     selectedData: null,
-    sidebarWidth: 280,
+    sidebarWidth: 320,
     sidebarMinWidth: 200,
     sidebarMaxWidth: 400
 };
