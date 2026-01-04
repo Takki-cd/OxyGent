@@ -288,7 +288,11 @@ async function apiPost(endpoint, data) {
 
 async function loadStats() {
     try {
-        const stats = await apiGet('/stats');
+        const filters = getFilters();
+        const stats = await apiGet('/stats', {
+            start_time: filters.start_time || '',
+            end_time: filters.end_time || ''
+        });
         state.stats = {
             pending: stats.pending || 0,
             annotated: stats.annotated || 0,
@@ -404,6 +408,11 @@ function resetFilters() {
 
 function setDefaultTimeRange() {
     const now = new Date();
+    // 分钟向上取整：先将秒和毫秒设为0，然后加1分钟
+    const roundedNow = new Date(now);
+    roundedNow.setSeconds(0, 0);  // 重置秒和毫秒为0
+    roundedNow.setMinutes(roundedNow.getMinutes() + 1);  // 加1分钟，实现向上取整效果
+
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
     const toLocalISO = (date) => {
@@ -416,7 +425,7 @@ function setDefaultTimeRange() {
     const endInput = document.getElementById('filterEndTime');
 
     if (startInput) startInput.value = toLocalISO(threeDaysAgo);
-    if (endInput) endInput.value = toLocalISO(now);
+    if (endInput) endInput.value = toLocalISO(roundedNow);
 }
 
 // ============================================================================

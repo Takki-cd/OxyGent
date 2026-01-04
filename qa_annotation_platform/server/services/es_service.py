@@ -262,15 +262,9 @@ class ESService:
         # 全文搜索（使用match查询，LocalEs支持）
         if filter_params.search_text and filter_params.search_text.strip():
             search_term = filter_params.search_text.strip()
-            must_clauses.append({
-                "bool": {
-                    "should": [
-                        {"match": {"question": search_term}},
-                        {"match": {"answer": search_term}}
-                    ],
-                    "minimum_should_match": 1
-                }
-            })
+            # 分别匹配 question 和 answer，仿照 caller/callee 的简单 match 查询方式
+            must_clauses.append({"match": {"question": search_term}})
+            # must_clauses.append({"match": {"answer": search_term}})
 
         query = {
             "bool": {
@@ -432,11 +426,33 @@ class ESService:
                 "total_pages": 0
             }
     
-    async def get_stats(self) -> Dict[str, Any]:
-        """获取统计信息"""
+    async def get_stats(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """获取统计信息（支持时间过滤）"""
         try:
+            # 构建时间范围查询
+            must_clauses = []
+            filter_clauses = []
+            
+            if start_time or end_time:
+                time_range = {}
+                if start_time:
+                    time_range["gte"] = start_time.strftime("%Y-%m-%d %H:%M:%S.%f")
+                if end_time:
+                    time_range["lte"] = end_time.strftime("%Y-%m-%d %H:%M:%S.%f")
+                filter_clauses.append({"range": {"created_at": time_range}})
+            
+            # 构建查询条件
+            if filter_clauses:
+                query = {"bool": {"filter": filter_clauses}}
+            else:
+                query = {"match_all": {}}
+            
             search_body = {
-                "query": {"match_all": {}},
+                "query": query,
                 "size": 0,
                 "aggs": {
                     "total": {"value_count": {"field": "data_id"}},

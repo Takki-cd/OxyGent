@@ -182,9 +182,13 @@ class AnnotationService:
         else:
             return {"success": False, "message": "更新失败"}
     
-    async def get_stats(self) -> StatsResponse:
-        """获取统计信息"""
-        stats = await self.es_service.get_stats()
+    async def get_stats(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> StatsResponse:
+        """获取统计信息（支持时间过滤）"""
+        stats = await self.es_service.get_stats(start_time=start_time, end_time=end_time)
         return StatsResponse(**stats)
     
     async def approve(self, data_id: str) -> Dict[str, Any]:

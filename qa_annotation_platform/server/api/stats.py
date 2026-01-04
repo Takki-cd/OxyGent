@@ -1,7 +1,10 @@
 """
-统计接口（简化版）
+统计接口（支持时间过滤）
 """
-from fastapi import APIRouter
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Query
 
 from ..models import StatsResponse
 from ..services.annotation_service import get_annotation_service
@@ -11,9 +14,16 @@ router = APIRouter(prefix="/api/v1/stats", tags=["统计接口"])
 
 
 @router.get("")
-async def get_stats() -> StatsResponse:
+async def get_stats(
+    start_time: Optional[datetime] = Query(None, description="开始时间"),
+    end_time: Optional[datetime] = Query(None, description="结束时间")
+) -> StatsResponse:
     """
-    获取标注统计信息
+    获取标注统计信息（支持时间过滤）
+    
+    查询参数：
+    - start_time: 开始时间
+    - end_time: 结束时间
     
     返回：
     - total: 总数
@@ -26,7 +36,7 @@ async def get_stats() -> StatsResponse:
     - by_status: 按状态分布
     """
     service = get_annotation_service()
-    return await service.get_stats()
+    return await service.get_stats(start_time=start_time, end_time=end_time)
 
 
 @router.get("/pending-p0")
