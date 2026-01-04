@@ -83,13 +83,12 @@ function handleSearchInput(e) {
 
 function handleKeydown(e) {
     if (e.key === 'Escape') {
-        // Close modals in priority order - rollback first, then preview, then others
+        // Close modals in priority order - rollback first, then preview, then history
+        // Note: edit-modal cannot be closed with Escape (requires button click)
         if (dom.rollbackModal && dom.rollbackModal.style.display === 'block') {
             hideRollbackModal();
         } else if (dom.previewModal && dom.previewModal.style.display === 'block') {
             hidePreviewModal();
-        } else if (dom.editModal && dom.editModal.style.display === 'block') {
-            hideEditModal();
         } else if (dom.historyModal && dom.historyModal.style.display === 'block') {
             hideHistoryModal();
         }
@@ -99,12 +98,11 @@ function handleKeydown(e) {
 function handleModalClicks(e) {
     if (e.target.classList.contains('modal')) {
         // Close the specific modal that was clicked
+        // Note: edit-modal cannot be closed by clicking background (requires button click)
         if (e.target.id === 'rollback-modal') {
             hideRollbackModal();
         } else if (e.target.id === 'preview-modal') {
             hidePreviewModal();
-        } else if (e.target.id === 'edit-modal') {
-            hideEditModal();
         } else if (e.target.id === 'history-modal') {
             hideHistoryModal();
         }
@@ -762,7 +760,7 @@ function showNotification(message, type = 'info') {
     });
 
     // Auto-hide
-    const hideDelay = type === 'error' ? 5000 : 3000;
+    const hideDelay = type === 'error' ? 5000 : 500;
     notificationTimeout = setTimeout(() => {
         notification.classList.remove('show');
         setTimeout(() => {

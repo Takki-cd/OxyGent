@@ -6,6 +6,7 @@ of prompts during runtime and maintains version history for all prompt changes.
 The system automatically falls back to LocalEs when Elasticsearch is unavailable.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -15,49 +16,6 @@ from ..databases.db_es import JesEs, LocalEs
 from ..db_factory import DBFactory
 
 logger = logging.getLogger(__name__)
-
-
-# def get_es_config():
-#     """Get Elasticsearch configuration from Config.
-
-#     Retrieves ES configuration including hosts, authentication, and connection
-#     parameters from the Config system with fallback to default values.
-
-#     Returns:
-#         tuple: A tuple containing (hosts_list, es_params_dict)
-#     """
-#     try:
-#         # Use Config's dedicated method to get ES configuration
-#         es_config = Config.get_es_config()
-
-#         if not es_config:
-#             logger.debug("ES config is empty, using defaults")
-#             return ["localhost:9200"], {}
-
-#         # Build ES host list
-#         hosts = es_config.get("hosts", ["localhost:9200"])
-#         if isinstance(hosts, str):
-#             hosts = [hosts]
-
-#         # Handle authentication information
-#         es_params = {}
-#         if "user" in es_config and "password" in es_config:
-#             if es_config["user"] and es_config["password"]:
-#                 es_params["http_auth"] = (es_config["user"], es_config["password"])
-
-#         # Add other ES settings
-#         es_params["timeout"] = es_config.get("timeout", 30)
-#         es_params["max_retries"] = es_config.get("max_retries", 3)
-#         es_params["retry_on_timeout"] = es_config.get("retry_on_timeout", True)
-
-#         logger.debug(
-#             f"Read ES config from Config: hosts={hosts}, auth={bool(es_params.get('http_auth'))}"
-#         )
-#         return hosts, es_params
-#     except Exception as e:
-#         logger.debug(f"Failed to get ES config from Config, using defaults: {e}")
-#         return ["localhost:9200"], {}
-
 
 class PromptManager:
     """Prompt management system with automatic ES/LocalEs fallback.
@@ -83,11 +41,10 @@ class PromptManager:
         if index_name is None:
             self.index_name = f"{Config.get_app_name()}_prompt"
         self._prompt_cache = {}  # Memory cache for full prompt documents
+        self._cache_lock = asyncio.Lock()
         self.db_client = None
         self.use_local_es = False
-
-        # Initialize database client
-        # self._init_db_client(es_host)
+        self._version_sync_coordinator = None  # Version sync coordinator
 
         db_factory = DBFactory()
         if Config.get_es_config():
@@ -99,130 +56,6 @@ class PromptManager:
         else:
             self.db_client = db_factory.get_instance(LocalEs)
             self.use_local_es = True
-
-    # def _init_db_client(self, es_host: str = None):
-    #     """Initialize database client with JesEs priority and LocalEs fallback.
-
-    #     Attempts to initialize JesEs first using configuration or provided host.
-    #     Falls back to LocalEs if JesEs initialization fails or credentials are unavailable.
-
-    #     Args:
-    #         es_host (str, optional): Specific ES host to use instead of config.
-    #     """
-    #     try:
-    #         if es_host:
-    #             # Use provided host address with credentials from config
-    #             hosts, es_params = get_es_config()
-    #             user = (
-    #                 es_params.get("http_auth", ("", ""))[0]
-    #                 if es_params.get("http_auth")
-    #                 else ""
-    #             )
-    #             password = (
-    #                 es_params.get("http_auth", ("", ""))[1]
-    #                 if es_params.get("http_auth")
-    #                 else ""
-    #             )
-
-    #             if not user or not password:
-    #                 logger.warning("ES credentials not available, will use LocalEs")
-    #                 raise ValueError("ES credentials not available")
-
-    #             self.db_client = JesEs([es_host], user, password)
-    #             logger.debug(f"Using specified ES host: {es_host}")
-    #         else:
-    #             # Try to use JesEs with config
-    #             hosts, es_params = get_es_config()
-    #             user = (
-    #                 es_params.get("http_auth", ("", ""))[0]
-    #                 if es_params.get("http_auth")
-    #                 else ""
-    #             )
-    #             password = (
-    #                 es_params.get("http_auth", ("", ""))[1]
-    #                 if es_params.get("http_auth")
-    #                 else ""
-    #             )
-
-    #             if not user or not password:
-    #                 logger.debug("ES credentials not configured, using LocalEs")
-    #                 raise ValueError("ES credentials not available in config")
-
-    #             self.db_client = JesEs(hosts, user, password)
-    #             logger.debug(f"Using JesEs configuration: {hosts}")
-    #     except Exception as e:
-    #         logger.debug(f"JesEs initialization failed, switching to LocalEs: {e}")
-    #         # Fallback to LocalEs
-    #         self.db_client = LocalEs()
-    #         self.use_local_es = True
-    #         logger.debug("Using LocalEs as storage backend")
-
-    # async def init_index(self):
-    #     """Initialize index for prompt storage.
-
-    #     Creates the necessary index structure for ES or prepares LocalEs.
-    #     For JesEs, creates index with proper mapping if it doesn't exist.
-    #     For LocalEs, no explicit index creation is needed.
-    #     """
-    #     try:
-    #         if self.use_local_es:
-    #             # LocalEs doesn't need explicit index creation
-    #             logger.debug("LocalEs ready, no index creation needed")
-    #             return
-
-    #         # For JesEs, try to create index (it will skip if already exists)
-    #         # Create index mapping
-    #         mapping = {
-    #             "mappings": {
-    #                 "properties": {
-    #                     "prompt_key": {
-    #                         "type": "keyword"  # Prompt key for exact matching
-    #                     },
-    #                     "prompt_content": {
-    #                         "type": "text",
-    #                         "analyzer": "standard",  # Prompt content
-    #                     },
-    #                     "description": {
-    #                         "type": "text"  # Prompt description
-    #                     },
-    #                     "category": {
-    #                         "type": "keyword"  # Category: system, expert, workflow, etc.
-    #                     },
-    #                     "agent_type": {
-    #                         "type": "keyword"  # Corresponding Agent type
-    #                     },
-    #                     "version": {
-    #                         "type": "integer"  # Version number
-    #                     },
-    #                     "is_active": {
-    #                         "type": "boolean"  # Whether active
-    #                     },
-    #                     "created_at": {"type": "date"},
-    #                     "updated_at": {"type": "date"},
-    #                     "created_by": {
-    #                         "type": "keyword"  # Creator
-    #                     },
-    #                     "tags": {
-    #                         "type": "keyword"  # Tags
-    #                     },
-    #                 }
-    #             }
-    #         }
-
-    #         result = await self.db_client.create_index(self.index_name, mapping)
-    #         if result:
-    #             logger.debug(f"Created ES index: {self.index_name}")
-    #         else:
-    #             logger.debug(f"ES index already exists: {self.index_name}")
-
-    #     except Exception as e:
-    #         logger.error(f"Failed to init ES index: {e}")
-    #         # If ES initialization fails, switch to LocalEs
-    #         if not self.use_local_es:
-    #             logger.warning("ES index initialization failed, switching to LocalEs")
-    #             self.db_client = LocalEs()
-    #             self.use_local_es = True
-    #             logger.debug("Switched to LocalEs as storage backend")
 
     async def save_prompt(
         self,
@@ -236,11 +69,11 @@ class PromptManager:
         tags: List[str] = None,
         created_by: str = "user",
     ) -> bool:
-        """Save or update a prompt with version history.
+        """Save or update a prompt with version history and concurrency control.
 
-        Saves a new prompt or updates an existing one, automatically handling
-        version increments and history preservation. The previous version is
-        archived before updating.
+        Saves a new prompt or updates an existing one with optimistic locking to
+        prevent concurrent update conflicts. Uses version number checking to ensure
+        updates are based on the latest version.
 
         Args:
             prompt_key (str): Unique identifier for the prompt.
@@ -248,7 +81,7 @@ class PromptManager:
             description (str): Human-readable description. Defaults to "".
             category (str): Prompt category. Defaults to "custom".
             agent_type (str): Associated agent type. Defaults to "".
-            version (int): Version number. Defaults to 1.
+            version (int): Base version number for new prompt. Ignored for updates.
             is_active (bool): Whether the prompt is active. Defaults to True.
             tags (List[str], optional): List of tags for categorization.
             created_by (str): Creator identifier. Defaults to "user".
@@ -257,8 +90,8 @@ class PromptManager:
             bool: True if save was successful, False otherwise.
         """
         try:
-            # Check if prompt already exists
-            existing = await self.get_prompt(prompt_key)
+            # Check if prompt already exists (use fresh data from ES for concurrency control)
+            existing = await self.get_prompt(prompt_key, use_cache=False)
 
             doc = {
                 "prompt_key": prompt_key,
@@ -266,15 +99,26 @@ class PromptManager:
                 "description": description,
                 "category": category,
                 "agent_type": agent_type,
-                "version": version,
                 "is_active": is_active,
                 "updated_at": datetime.now().isoformat(),
                 "tags": tags or [],
             }
 
             if existing:
+                # For updates, always increment based on current version in ES
+                current_version = existing.get("version", 1)
+                doc["version"] = current_version + 1
+
+                # Verify cache hasn't drifted from ES
+                cached_version = self._prompt_cache.get(prompt_key, {}).get("version")
+                if cached_version and cached_version != current_version:
+                    logger.warning(
+                        f"Cache version mismatch for {prompt_key}: "
+                        f"cache={cached_version}, ES={current_version}. Syncing cache..."
+                    )
+
                 # Save current version to history
-                history_id = f"{prompt_key}_v{existing.get('version', 1)}"
+                history_id = f"{prompt_key}_v{current_version}"
                 history_doc = existing.copy()
                 history_doc["is_history"] = True
                 history_doc["history_id"] = history_id
@@ -293,21 +137,19 @@ class PromptManager:
                 # Update existing record
                 doc["created_at"] = existing.get("created_at")
                 doc["created_by"] = existing.get("created_by", created_by)
-                doc["version"] = existing.get("version", 1) + 1
             else:
                 # Create new record
+                doc["version"] = 1
                 doc["created_at"] = datetime.now().isoformat()
                 doc["created_by"] = created_by
 
-            # Update cache (for immediate read availability)
-            old_cache_value = self._prompt_cache.get(prompt_key)  # Backup for rollback
-            self._prompt_cache[prompt_key] = doc
-            logger.info(f"✓ Cache updated for {prompt_key} (phase 1)")
-            logger.info(
-                f"  Cache now contains {len(self._prompt_cache)} keys: {list(self._prompt_cache.keys())}"
-            )
-            logger.debug(f"  Updated content: {doc.get('prompt_content', '')[:60]}...")
-
+            # Update cache (for immediate read availability) - with lock protection
+            async with self._cache_lock:
+                old_cache_value = self._prompt_cache.get(prompt_key)  # Backup for rollback
+                self._prompt_cache[prompt_key] = doc
+                logger.info(
+                    f"  Cache now contains {len(self._prompt_cache)} keys: {list(self._prompt_cache.keys())}"
+                )
             # Persist to ES (for durability)
             try:
                 await self.db_client.index(
@@ -319,20 +161,26 @@ class PromptManager:
                 logger.error(f"ES write failed for {prompt_key}: {es_error}")
                 logger.warning("Rolling back cache to previous state")
 
-                if old_cache_value is not None:
-                    # Restore old value
-                    self._prompt_cache[prompt_key] = old_cache_value
-                    logger.info("Cache rolled back to previous version")
-                else:
-                    # Remove newly added key
-                    if prompt_key in self._prompt_cache:
-                        del self._prompt_cache[prompt_key]
-                    logger.info("Cache rolled back (removed new key)")
+                async with self._cache_lock:
+                    if old_cache_value is not None:
+                        # Restore old value
+                        self._prompt_cache[prompt_key] = old_cache_value
+                        logger.info("Cache rolled back to previous version")
+                    else:
+                        # Remove newly added key
+                        if prompt_key in self._prompt_cache:
+                            del self._prompt_cache[prompt_key]
+                        logger.info("Cache rolled back (removed new key)")
 
                 # Re-raise to indicate failure
                 raise
 
             logger.info(f"Saved prompt: {prompt_key} (two-phase commit completed)")
+
+            # Update local version tracker for ES polling sync
+            new_version = doc["version"]
+            await self._update_local_version_tracker(prompt_key, new_version)
+
             return True
 
         except Exception as e:
@@ -355,10 +203,13 @@ class PromptManager:
             Optional[Dict[str, Any]]: The prompt data dict if found, None otherwise.
         """
         try:
-            # Check cache first if enabled
-            if use_cache and prompt_key in self._prompt_cache:
-                logger.debug(f"Using cached prompt for: {prompt_key}")
-                return self._prompt_cache[prompt_key]
+            # Check cache first if enabled (with lock protection)
+            if use_cache:
+                async with self._cache_lock:
+                    if prompt_key in self._prompt_cache:
+                        logger.debug(f"Using cached prompt for: {prompt_key}")
+                        # Return a copy to prevent external modification
+                        return self._prompt_cache[prompt_key].copy()
 
             # Cache miss, fetch from database
             search_body = {"query": {"term": {"_id": prompt_key}}, "size": 1}
@@ -384,9 +235,10 @@ class PromptManager:
             hits = response.get("hits", {}).get("hits", [])
             if hits:
                 source = hits[0]["_source"]
-                # Update cache with full document
-                self._prompt_cache[prompt_key] = source
-                return source
+                # Update cache with full document (with lock protection)
+                async with self._cache_lock:
+                    self._prompt_cache[prompt_key] = source
+                return source.copy() if source else None
 
             return None
 
@@ -394,19 +246,20 @@ class PromptManager:
             logger.error(f"Failed to get prompt {prompt_key}: {e}")
             return None
 
-    def clear_cache(self, prompt_key: str = None):
+    async def clear_cache(self, prompt_key: str = None):
         """Clear cache for specific key or all keys.
 
         Args:
             prompt_key: Specific key to clear, None to clear all
         """
-        if prompt_key:
-            if prompt_key in self._prompt_cache:
-                del self._prompt_cache[prompt_key]
-            logger.debug(f"Cleared cache for: {prompt_key}")
-        else:
-            self._prompt_cache.clear()
-            logger.info("Cleared all prompt cache")
+        async with self._cache_lock:
+            if prompt_key:
+                if prompt_key in self._prompt_cache:
+                    del self._prompt_cache[prompt_key]
+                logger.debug(f"Cleared cache for: {prompt_key}")
+            else:
+                self._prompt_cache.clear()
+                logger.info("Cleared all prompt cache")
 
     async def get_prompt_content(
         self, prompt_key: str, fallback_content: str = "", use_cache: bool = True
@@ -538,7 +391,7 @@ class PromptManager:
                 return False
 
             # Clear cache before reverting to ensure fresh data
-            self.clear_cache(prompt_key)
+            await self.clear_cache(prompt_key)
 
             # Create new version using historical data
             logger.debug(f"Creating new version from history data for {prompt_key}")
@@ -599,15 +452,21 @@ class PromptManager:
             # If no filters and cache is populated, return from cache directly
             has_filters = any([category, agent_type, is_active is not None, tags])
 
-            if not has_filters and self._prompt_cache:
-                results = []
-                for prompt_key, prompt_data in self._prompt_cache.items():
-                    result = prompt_data.copy()
-                    result["id"] = prompt_key
-                    results.append(result)
-                # Sort by updated_at descending
-                results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
-                return results
+            async with self._cache_lock:
+                if not has_filters and self._prompt_cache:
+                    results = []
+                    # Create a snapshot to avoid holding lock during iteration
+                    cache_snapshot = self._prompt_cache.copy()
+                    # Release lock before processing
+                    # (we have a copy, so safe to process outside lock)
+
+                    for prompt_key, prompt_data in cache_snapshot.items():
+                        result = prompt_data.copy()
+                        result["id"] = prompt_key
+                        results.append(result)
+                    # Sort by updated_at descending
+                    results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+                    return results
 
             # Build query for ES search
             query = {"match_all": {}}
@@ -644,7 +503,8 @@ class PromptManager:
 
                 # Update cache with fetched data (if no filters, refresh full cache)
                 if not has_filters:
-                    self._prompt_cache[hit["_id"]] = hit["_source"]
+                    async with self._cache_lock:
+                        self._prompt_cache[hit["_id"]] = hit["_source"]
 
             return results
 
@@ -676,10 +536,11 @@ class PromptManager:
                 # This prevents data resurrection on restart
                 raise  # Re-raise to trigger outer exception handler
 
-            # ES delete successful, now clear cache
-            if prompt_key in self._prompt_cache:
-                del self._prompt_cache[prompt_key]
-                logger.info(f"Cache cleared for {prompt_key} (after ES delete)")
+            # ES delete successful, now clear cache (with lock protection)
+            async with self._cache_lock:
+                if prompt_key in self._prompt_cache:
+                    del self._prompt_cache[prompt_key]
+                    logger.info(f"Cache cleared for {prompt_key} (after ES delete)")
 
             return True
 
@@ -757,17 +618,68 @@ class PromptManager:
             logger.error(f"Failed to search prompts: {e}")
             return []
 
+    async def _update_local_version_tracker(self, prompt_key: str, version: int):
+        """Update local version tracker for ES polling synchronization.
+
+        Args:
+            prompt_key: The prompt key that was updated
+            version: The new version number
+        """
+        try:
+            # Lazy import to avoid circular dependency
+            from .version import get_version_sync_coordinator
+
+            coordinator = await get_version_sync_coordinator(self)
+            coordinator.update_local_version(prompt_key, version)
+        except Exception as e:
+            logger.debug(f"Failed to update local version tracker: {e}")
+
+    async def start_version_sync(self):
+        """Start version synchronization for multi-instance cache consistency.
+
+        This method should be called after initializing the PromptManager to enable
+        automatic cache synchronization across multiple instances.
+        """
+        try:
+            # Lazy import to avoid circular dependency
+            from .version import get_version_sync_coordinator
+
+            if self._version_sync_coordinator is None:
+                coordinator = await get_version_sync_coordinator(self)
+                self._version_sync_coordinator = coordinator
+                await coordinator.start()
+                logger.info("Version synchronization started")
+        except Exception as e:
+            logger.error(f"Failed to start version synchronization: {e}")
+
+    async def stop_version_sync(self):
+        """Stop version synchronization.
+
+        This method should be called when shutting down the application.
+        """
+        if self._version_sync_coordinator:
+            try:
+                await self._version_sync_coordinator.stop()
+                logger.info("Version synchronization stopped")
+            except Exception as e:
+                logger.error(f"Error stopping version synchronization: {e}")
+
     async def close(self):
         """Close the database connection.
 
         Properly closes the underlying database client connection to free resources.
         Should be called when the PromptManager is no longer needed.
         """
+        # Stop version sync first
+        await self.stop_version_sync()
+
+        # Close database connection
         await self.db_client.close()
 
 
 # Global prompt manager instance
 prompt_manager = None
+_version_sync_started = False
 
 
 async def get_prompt_manager() -> PromptManager:
@@ -775,17 +687,25 @@ async def get_prompt_manager() -> PromptManager:
 
     Returns the singleton PromptManager instance, creating it if necessary.
     The instance is automatically configured using Config settings.
+    Version sync is automatically started on first initialization.
 
     Returns:
         PromptManager: The global prompt manager instance.
     """
-    global prompt_manager
+    global prompt_manager, _version_sync_started
     if prompt_manager is None:
         # Read ES config from Config, no longer using environment variables
         prompt_manager = (
             PromptManager()
         )  # Don't pass es_host, let it auto-read from Config
         # await prompt_manager.init_index()
+        try:
+            await prompt_manager.start_version_sync()
+            _version_sync_started = True
+            logger.info("Version sync auto-started with PromptManager")
+        except Exception as e:
+            logger.error(f"Failed to auto-start version sync: {e}")
+
     return prompt_manager
 
 
@@ -794,10 +714,17 @@ async def close_prompt_manager():
 
     This function should be called when the application is shutting down
     to properly close the Elasticsearch connection and prevent resource leaks.
+    Also stops version sync if it was started.
     """
-    global prompt_manager
+    global prompt_manager, _version_sync_started
     if prompt_manager is not None:
         try:
+            # Stop version sync first (already called in prompt_manager.close(), but explicit here)
+            if _version_sync_started:
+                await prompt_manager.stop_version_sync()
+                _version_sync_started = False
+                logger.info("Version sync stopped during shutdown")
+
             await prompt_manager.close()
             logger.info("Prompt manager closed successfully")
         except Exception as e:

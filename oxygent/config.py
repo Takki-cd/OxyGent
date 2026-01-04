@@ -117,6 +117,9 @@ class Config:
             "semaphore": 1024,
             "timeout": 60,
         },
+        "live_prompt": {
+            "es_polling_interval": 2,  # ES polling interval in seconds for version sync
+        },
     }
 
     @classmethod
@@ -709,3 +712,21 @@ class Config:
     @classmethod
     def get_tool_timeout(cls):
         return cls.get_module_config("tool", "timeout")
+
+    """ live_prompt """
+
+    @classmethod
+    def set_live_prompt_config(cls, live_prompt_config):
+        cls.set_module_config("live_prompt", live_prompt_config)
+
+    @classmethod
+    def get_live_prompt_config(cls):
+        return cls.get_module_config("live_prompt")
+
+    @classmethod
+    def set_live_prompt_es_polling_interval(cls, es_polling_interval):
+        cls.set_module_config("live_prompt", "es_polling_interval", es_polling_interval)
+
+    @classmethod
+    def get_live_prompt_es_polling_interval(cls):
+        return cls.get_module_config("live_prompt", "es_polling_interval")
