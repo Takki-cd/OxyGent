@@ -1,7 +1,7 @@
 """
-标注服务层 - 业务逻辑
+Annotation Service Layer - Business Logic
 
-按group_id/trace_id聚合
+Aggregate by group_id/trace_id
 """
 import logging
 import uuid
@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 class AnnotationService:
-    """标注服务类 - 简化版
+    """Annotation Service Class - Simplified
     
-    核心变更：
-    - 删除QAContext，不再维护内存中的层级关系
-    - 直接通过group_id/trace_id聚合查询
-    - 简化去重逻辑（基于data_hash）
+    Core Changes:
+    - Delete QAContext, no longer maintain hierarchical relationships in memory
+    - Directly aggregate query by group_id/trace_id
+    - Simplify deduplication logic (based on data_hash)
     """
     
     def __init__(self, es_service: ESService, config: Dict[str, Any] = None):
@@ -38,24 +38,24 @@ class AnnotationService:
         self.batch_id = ""
     
     def _new_batch_id(self) -> str:
-        """生成批次ID"""
+        """Generate batch ID"""
         import hashlib
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
         return hashlib.md5(timestamp.encode()).hexdigest()[:16]
     
     async def deposit(self, request: DepositRequest) -> Dict[str, Any]:
-        """注入单条数据"""
-        # 检查重复
+        """Deposit single data"""
+        # Check duplicate
         data_hash = request.compute_data_hash()
         is_dup = await self.es_service.is_duplicate(data_hash)
         if is_dup:
             existing = await self._get_existing_by_hash(data_hash)
             if existing:
-                logger.info(f"数据重复，跳过: hash={data_hash[:16]}...")
+                logger.info(f"Duplicate data, skip: hash={data_hash[:16]}...")
                 return {
                     "success": True,
                     "data_id": existing["data_id"],
-                    "message": "数据已存在"
+                    "message": "Data already exists"
                 }
         
         if not self.batch_id:
@@ -65,16 +65,16 @@ class AnnotationService:
         
         await self.es_service.index_data(data)
         
-        logger.info(f"数据注入成功: data_id={data.data_id}, trace_id={data.source_trace_id}, priority={data.priority}, caller={data.caller}, callee={data.callee}")
+        logger.info(f"Data deposit successful: data_id={data.data_id}, trace_id={data.source_trace_id}, priority={data.priority}, caller={data.caller}, callee={data.callee}")
         
         return {
             "success": True,
             "data_id": data.data_id,
-            "message": "注入成功"
+            "message": "Deposit successful"
         }
     
     async def _get_existing_by_hash(self, data_hash: str) -> Optional[Dict]:
-        """根据hash获取已存在的数据"""
+        """Get existing data by hash"""
         try:
             search_body = {
                 "query": {"term": {"data_hash": data_hash}},
@@ -92,7 +92,7 @@ class AnnotationService:
             return None
     
     async def batch_deposit(self, request: BatchDepositRequest) -> Dict[str, Any]:
-        """批量注入数据"""
+        """Batch deposit data"""
         if not self.batch_id:
             self.batch_id = self._new_batch_id()
         
@@ -127,7 +127,7 @@ class AnnotationService:
             "skipped_count": len(skipped),
             "failed_count": len(failed),
             "data_ids": [d.data_id for d in data_list],
-            "message": f"批量注入: 成功{success_count}条, 跳过{len(skipped)}条, 失败{len(failed)}条"
+            "message": f"Batch deposit: {success_count} succeeded, {len(skipped)} skipped, {len(failed)} failed"
         }
     
     async def get_data_list(
@@ -136,23 +136,23 @@ class AnnotationService:
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
-        """获取数据列表"""
+        """Get data list"""
         return await self.es_service.search_data(filter_params, page, page_size)
     
     async def get_data_by_id(self, data_id: str) -> Optional[Dict[str, Any]]:
-        """根据ID获取数据详情"""
+        """Get data details by ID"""
         return await self.es_service.get_data_by_id(data_id)
     
     async def get_by_trace_id(self, trace_id: str) -> List[Dict[str, Any]]:
-        """根据trace_id获取所有关联数据"""
+        """Get all related data by trace_id"""
         return await self.es_service.get_by_trace_id(trace_id)
     
     async def get_by_group_id(self, group_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """根据group_id获取所有关联数据"""
+        """Get all related data by group_id"""
         return await self.es_service.get_by_group_id(group_id, limit)
     
     async def get_grouped_summary(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
-        """获取分组汇总"""
+        """Get grouped summary"""
         return await self.es_service.get_grouped_summary(page, page_size)
     
     async def update_annotation(
@@ -160,7 +160,7 @@ class AnnotationService:
         data_id: str, 
         update: AnnotationUpdate
     ) -> Dict[str, Any]:
-        """更新标注"""
+        """Update annotation"""
         update_data = {}
         
         if update.status:
@@ -173,48 +173,48 @@ class AnnotationService:
             update_data["scores"] = update.scores
         
         if not update_data:
-            return {"success": False, "message": "没有需要更新的内容"}
+            return {"success": False, "message": "No content to update"}
         
         success = await self.es_service.update_data(data_id, update_data)
         
         if success:
-            return {"success": True, "message": "更新成功"}
+            return {"success": True, "message": "Update successful"}
         else:
-            return {"success": False, "message": "更新失败"}
+            return {"success": False, "message": "Update failed"}
     
     async def get_stats(
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> StatsResponse:
-        """获取统计信息（支持时间过滤）"""
+        """Get statistics (support time filtering)"""
         stats = await self.es_service.get_stats(start_time=start_time, end_time=end_time)
         return StatsResponse(**stats)
     
     async def approve(self, data_id: str) -> Dict[str, Any]:
-        """审核通过"""
+        """Approve review"""
         success = await self.es_service.update_data(
             data_id, 
             {"status": DataStatus.APPROVED.value}
         )
-        return {"success": success, "message": "已通过" if success else "失败"}
+        return {"success": success, "message": "Approved" if success else "Failed"}
     
     async def reject(self, data_id: str, reject_reason: str = None) -> Dict[str, Any]:
-        """审核拒绝"""
+        """Reject review"""
         update_data = {
             "status": DataStatus.REJECTED.value,
             "reject_reason": reject_reason or ""
         }
         success = await self.es_service.update_data(data_id, update_data)
-        return {"success": success, "message": "已拒绝" if success else "失败"}
+        return {"success": success, "message": "Rejected" if success else "Failed"}
 
 
-# 全局服务实例
+# Global Service Instance
 _annotation_service: Optional[AnnotationService] = None
 
 
 def get_annotation_service() -> AnnotationService:
-    """获取标注服务（单例）"""
+    """Get annotation service (singleton)"""
     global _annotation_service
     if _annotation_service is None:
         es_service = get_es_service()
@@ -223,6 +223,6 @@ def get_annotation_service() -> AnnotationService:
 
 
 def reset_annotation_service():
-    """重置标注服务（用于测试）"""
+    """Reset annotation service (for testing)"""
     global _annotation_service
     _annotation_service = None

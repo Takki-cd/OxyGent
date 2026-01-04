@@ -1,20 +1,20 @@
 /**
- * QA标注平台前端逻辑（新版 - 旧版风格）
+ * QA Annotation Platform Frontend Logic (New Version - Legacy Style)
  * 
- * 特性：
- * - 侧边栏拖拽功能
- * - 表格列宽拖拽功能
- * - 时间范围默认中国上海时间近三天
- * - 标注进度条仿照旧版
- * - 列表展示GroupID和TraceID
- * - 抽屉式标注页面（占50%空间）
- * - 简约精美的基础信息展示
- * - 修复debounce bug - 改用搜索按钮触发
+ * Features:
+ * - Sidebar drag functionality
+ * - Table column width drag functionality
+ * - Time range default to Shanghai timezone, last 3 days
+ * - Annotation progress bar following legacy style
+ * - Display GroupID and TraceID in list
+ * - Drawer-style annotation page (50% width)
+ * - Clean and elegant basic info display
+ * - Fixed debounce bug - use search button to trigger
  */
 
 const API_BASE = '/api/v1';
 
-// 全局状态
+// Global State
 let state = {
     dataList: [],
     total: 0,
@@ -33,7 +33,7 @@ let state = {
     sidebarMaxWidth: 400
 };
 
-// Agent颜色映射
+// Agent Color Mapping
 const agentColorMap = [
     {bgColor: '#FEEAD4', color: '#7d4303'},
     {bgColor: '#E4FBCC', color: '#417609'},
@@ -54,7 +54,7 @@ const agentColorMap = [
 ];
 
 // ============================================================================
-// 工具函数
+// Utility Functions
 // ============================================================================
 
 function formatDateTimeFull(timeStr) {
@@ -124,7 +124,7 @@ function showToast(message, type = 'info') {
 }
 
 // ============================================================================
-// 侧边栏拖拽功能
+// Sidebar Drag Functionality
 // ============================================================================
 
 function initSidebarResize() {
@@ -167,7 +167,7 @@ function initSidebarResize() {
 }
 
 // ============================================================================
-// 表格列宽拖拽功能
+// Table Column Width Drag Functionality
 // ============================================================================
 
 function initTableColumnResize() {
@@ -240,7 +240,7 @@ function initTableColumnResize() {
 }
 
 // ============================================================================
-// API调用
+// API Calls
 // ============================================================================
 
 async function apiGet(endpoint, params = {}) {
@@ -253,7 +253,7 @@ async function apiGet(endpoint, params = {}) {
     
     const response = await fetch(url.toString());
     if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`);
+        throw new Error(`API call failed: ${response.status}`);
     }
     return response.json();
 }
@@ -265,7 +265,7 @@ async function apiPut(endpoint, data) {
         body: JSON.stringify(data)
     });
     if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`);
+        throw new Error(`API call failed: ${response.status}`);
     }
     return response.json();
 }
@@ -277,13 +277,13 @@ async function apiPost(endpoint, data) {
         body: JSON.stringify(data)
     });
     if (!response.ok) {
-        throw new Error(`API调用失败: ${response.status}`);
+        throw new Error(`API call failed: ${response.status}`);
     }
     return response.json();
 }
 
 // ============================================================================
-// 数据加载
+// Data Loading
 // ============================================================================
 
 async function loadStats() {
@@ -301,7 +301,7 @@ async function loadStats() {
         };
         renderStats();
     } catch (error) {
-        console.error('获取统计信息失败:', error);
+        console.error('Failed to fetch statistics:', error);
     }
 }
 
@@ -323,8 +323,8 @@ async function loadData(page = 1) {
         renderDataList();
         renderPagination();
     } catch (error) {
-        console.error('获取数据列表失败:', error);
-        showToast('获取数据列表失败', 'error');
+        console.error('Failed to fetch data list:', error);
+        showToast('Failed to fetch data list', 'error');
     }
 }
 
@@ -353,15 +353,15 @@ function getFilters() {
 
 function formatTimeForBackend(datetimeLocal) {
     if (!datetimeLocal) return '';
-    // datetime-local格式是 "2025-12-27T20:38"，需要转换为ISO格式 "2025-12-27T20:38:00"
-    // 直接返回，FastAPI会自动解析
+    // datetime-local format is "2025-12-27T20:38", need to convert to ISO format "2025-12-27T20:38:00"
+    // Just return, FastAPI will parse it automatically
     return datetimeLocal + ':00';
 }
 
-// 防抖定时器
+// Debounce Timer
 let filterDebounceTimer = null;
 
-// 防抖加载数据（用于实时搜索场景）
+// Debounced Data Loading (for real-time search scenarios)
 function debounceLoadData() {
     if (filterDebounceTimer) {
         clearTimeout(filterDebounceTimer);
@@ -371,23 +371,23 @@ function debounceLoadData() {
     }, 300);
 }
 
-// 处理过滤输入框的输入事件（实时防抖搜索）
+// Handle Filter Input Events (real-time debounced search)
 function handleFilterInput(element) {
     debounceLoadData();
 }
 
-// 点击搜索图标触发搜索
+// Trigger Search on Search Icon Click
 function handleSearchClick(type) {
     loadData(1);
 }
 
-// 搜索函数 - 点击搜索按钮触发（保留兼容）
+// Search Function - Trigger on Search Button Click (legacy compatibility)
 function doSearch(type) {
     loadData(1);
 }
 
 function applyFilters() {
-    loadStats(); // 同步更新统计信息
+    loadStats(); // Sync update statistics
     loadData(1);
 }
 
@@ -402,16 +402,16 @@ function resetFilters() {
     document.getElementById('filterSearch').value = '';
 
     setDefaultTimeRange();
-    loadStats(); // 同步更新统计信息
+    loadStats(); // Sync update statistics
     loadData(1);
 }
 
 function setDefaultTimeRange() {
     const now = new Date();
-    // 分钟向上取整：先将秒和毫秒设为0，然后加1分钟
+    // Round up minutes: set seconds and milliseconds to 0, then add 1 minute
     const roundedNow = new Date(now);
-    roundedNow.setSeconds(0, 0);  // 重置秒和毫秒为0
-    roundedNow.setMinutes(roundedNow.getMinutes() + 1);  // 加1分钟，实现向上取整效果
+    roundedNow.setSeconds(0, 0);  // Reset seconds and milliseconds to 0
+    roundedNow.setMinutes(roundedNow.getMinutes() + 1);  // Add 1 minute for rounding effect
 
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
@@ -429,7 +429,7 @@ function setDefaultTimeRange() {
 }
 
 // ============================================================================
-// 渲染函数
+// Rendering Functions
 // ============================================================================
 
 function renderStats() {
@@ -489,17 +489,17 @@ function renderDataList() {
                 <td class="qa-time">${formatDateShort(data.created_at)}</td>
                 <td class="qa-action">
                     <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); viewData('${data.data_id}')">
-                        标注
+                        Annotate
                     </button>
                 </td>
             </tr>
         `;
     }).join('');
     
-    document.getElementById('mainStats').textContent = `共 ${state.total} 条`;
+    document.getElementById('mainStats').textContent = `${state.total} items`;
 }
 
-// 格式化调用关系 - 类似QA关系的表述
+// Format Call Relationship - Similar to QA relationship expression
 function formatCallerCallee(data) {
     const caller = data.caller || 'User';
     const callee = data.callee || 'Unknown';
@@ -519,7 +519,7 @@ function formatCallerCallee(data) {
 }
 
 function formatGroupTrace(data) {
-    // 完整展示GroupID和TraceID
+    // Display GroupID and TraceID completely
     const groupId = data.source_group_id || '-';
     const traceId = data.source_trace_id || '-';
     
@@ -555,10 +555,10 @@ function getCalleeDisplay(data) {
 
 function getStatusText(status) {
     const statusMap = {
-        pending: '待标注',
-        annotated: '已标注',
-        approved: '已通过',
-        rejected: '已拒绝'
+        pending: 'Pending',
+        annotated: 'Annotated',
+        approved: 'Approved',
+        rejected: 'Rejected'
     };
     return statusMap[status] || status;
 }
@@ -569,14 +569,14 @@ function getDataTypeText(type) {
         'agent': 'Agent',
         'llm': 'LLM',
         'tool': 'Tool',
-        'custom': '自定义'
+        'custom': 'Custom'
     };
     return typeMap[type] || type || '-';
 }
 
 function renderPagination() {
     document.getElementById('paginationInfo').textContent = 
-        `第 ${state.currentPage}/${state.totalPages} 页，共 ${state.total} 条`;
+        `Page ${state.currentPage}/${state.totalPages}, ${state.total} items`;
     
     document.getElementById('pageNum').textContent = state.currentPage;
     
@@ -597,7 +597,7 @@ function changePage(page) {
 }
 
 // ============================================================================
-// 数据详情与标注
+// Data Detail & Annotation
 // ============================================================================
 
 async function viewData(dataId) {
@@ -608,8 +608,8 @@ async function viewData(dataId) {
         openDrawer();
         renderDataList();
     } catch (error) {
-        console.error('获取数据详情失败:', error);
-        showToast('获取数据详情失败', 'error');
+        console.error('Failed to fetch data details:', error);
+        showToast('Failed to fetch data details', 'error');
     }
 }
 
@@ -618,13 +618,13 @@ function renderDataDetail(data) {
     const isPending = data.status === 'pending';
     const isAnnotated = data.status === 'annotated';
     
-    // 构建基本信息三列表格 - 标签 | 值1 | 值2
+    // Build basic info 3-column table - Label | Value1 | Value2
     const metaRows = [];
     
-    // 第一行：标签 + Group | Trace
+    // First row: Label + Group | Trace
     metaRows.push(`
         <tr class="meta-row-label">
-            <td class="meta-cell-label">标签</td>
+            <td class="meta-cell-label">Label</td>
             <td class="meta-cell-value" colspan="2">
                 <span class="qa-priority p${data.priority ?? 4}">P${data.priority ?? 4}</span>
                 <span class="qa-status ${data.status}">${getStatusText(data.status)}</span>
@@ -633,7 +633,7 @@ function renderDataDetail(data) {
         </tr>
     `);
     
-    // Group单独一行
+    // Group single row
     metaRows.push(`
         <tr class="meta-row-data">
             <td class="meta-cell-label">Group</td>
@@ -641,7 +641,7 @@ function renderDataDetail(data) {
         </tr>
     `);
     
-    // Trace单独一行
+    // Trace single row
     metaRows.push(`
         <tr class="meta-row-data">
             <td class="meta-cell-label">Trace</td>
@@ -649,26 +649,26 @@ function renderDataDetail(data) {
         </tr>
     `);
     
-    // 时间行
+    // Time row
     metaRows.push(`
         <tr class="meta-row-data">
-            <td class="meta-cell-label">时间</td>
+            <td class="meta-cell-label">Time</td>
             <td class="meta-cell-value" colspan="2">${formatDateTimeFull(data.created_at)}</td>
         </tr>
     `);
     
-    // 调用关系行
+    // Call relationship row
     if (data.caller || data.callee) {
         metaRows.push(`
             <tr class="meta-row-data">
-                <td class="meta-cell-label">调用关系</td>
+                <td class="meta-cell-label">Call Relationship</td>
                 <td class="meta-cell-value" colspan="2">${formatCallerCallee(data)}</td>
             </tr>
         `);
     }
     
     drawerBody.innerHTML = `
-        <!-- 基本信息区域 - 三列表格 -->
+        <!-- Basic Info Area - 3-column Table -->
         <div class="detail-meta-section">
             <table class="meta-table">
                 <tbody>
@@ -677,7 +677,7 @@ function renderDataDetail(data) {
             </table>
         </div>
 
-        <!-- QA内容 - 重点区域 -->
+        <!-- QA Content - Key Area -->
         <div class="detail-qa-section">
             <div class="qa-block">
                 <div class="qa-block-header">
@@ -700,12 +700,12 @@ function renderDataDetail(data) {
             </div>
         </div>
 
-        <!-- 标注结果展示 -->
+        <!-- Annotation Result Display -->
         ${data.annotation && Object.keys(data.annotation).length > 0 ? `
         <div class="detail-annotation-section">
             <div class="section-header">
                 <span class="section-icon">📋</span>
-                <span class="section-title">已标注结果</span>
+                <span class="section-title">Annotated Result</span>
             </div>
             <div class="annotation-content">
                 ${renderAnnotation(data.annotation)}
@@ -713,12 +713,12 @@ function renderDataDetail(data) {
         </div>
         ` : ''}
 
-        <!-- 拒绝原因展示 - 只对rejected状态显示 -->
+        <!-- Reject Reason Display - Only show for rejected status -->
         ${data.status === 'rejected' && data.reject_reason ? `
         <div class="reject-reason-section">
             <div class="section-header rejected">
                 <span class="section-icon">🚫</span>
-                <span class="section-title">拒绝原因</span>
+                <span class="section-title">Reject Reason</span>
             </div>
             <div class="reject-reason-content">
                 ${escapeHtml(data.reject_reason)}
@@ -726,10 +726,10 @@ function renderDataDetail(data) {
         </div>
         ` : ''}
 
-        <!-- 标注表单 - 只对pending状态显示标注表单 -->
+        <!-- Annotation Form - Only show for pending status -->
         ${isPending ? renderAnnotationForm(data) : ''}
         
-        <!-- 审核操作区 - 对annotated状态显示审核按钮 -->
+        <!-- Review Action Area - Show review buttons for annotated status -->
         ${isAnnotated ? renderReviewSection(data) : ''}
     `;
 }
@@ -745,7 +745,7 @@ function isJSON(str) {
 }
 
 function formatContent(content) {
-    if (!content) return '<span class="empty-content">暂无内容</span>';
+    if (!content) return '<span class="empty-content">No content available</span>';
     if (typeof content === 'object') {
         return `<pre>${JSON.stringify(content, null, 2)}</pre>`;
     }
@@ -755,7 +755,7 @@ function formatContent(content) {
     return `<pre>${String(content)}</pre>`;
 }
 
-// XSS转义函数
+// XSS Escape Function
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -765,14 +765,14 @@ function escapeHtml(text) {
 
 function renderAnnotation(annotation) {
     if (!annotation || Object.keys(annotation).length === 0) {
-        return '<span class="empty-content">暂无标注结果</span>';
+        return '<span class="empty-content">No annotation result</span>';
     }
     
-    // 构建表格形式的KV展示
-    // 特殊处理：将question排在前面，content排在后面
+    // Build KV display in table format
+    // Special handling: put question first, content last
     const entries = Object.entries(annotation);
     
-    // 排序：question优先，然后是content，然后按字母顺序，comment最后
+    // Sort: question first, then content, then alphabetical order, comment last
     entries.sort((a, b) => {
         const keyA = a[0].toLowerCase();
         const keyB = b[0].toLowerCase();
@@ -812,13 +812,13 @@ function renderAnnotation(annotation) {
 function renderAnnotationForm(data) {
     const isPending = data.status === 'pending';
     
-    // 待标注状态只显示"提交标注"按钮
+    // Pending status only shows "Submit Annotation" button
     let buttonsHtml = '';
     
     if (isPending) {
         buttonsHtml = `
             <button class="btn btn-primary" onclick="submitAnnotation('${data.data_id}')">
-                💾 提交标注
+                💾 Submit Annotation
             </button>
         `;
     }
@@ -827,41 +827,41 @@ function renderAnnotationForm(data) {
         <div class="annotation-form">
             <div class="form-header">
                 <span class="form-icon">✏️</span>
-                <span class="form-title">标注</span>
+                <span class="form-title">Annotation</span>
             </div>
             
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">修正后Question</label>
+                    <label class="form-label">Corrected Question</label>
                     <textarea class="form-textarea" id="annotationQuestion" rows="3" 
-                        placeholder="可选，填写修正后的Question...">${data.question || ''}</textarea>
+                        placeholder="Optional, enter corrected Question...">${data.question || ''}</textarea>
                 </div>
             </div>
             
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">修正后Answer</label>
+                    <label class="form-label">Corrected Answer</label>
                     <textarea class="form-textarea" id="annotationAnswer" rows="4" 
-                        placeholder="可选，填写修正后的Answer...">${data.answer || ''}</textarea>
+                        placeholder="Optional, enter corrected Answer...">${data.answer || ''}</textarea>
                 </div>
             </div>
             
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">质量评分 <span class="required-mark">*</span></label>
+                    <label class="form-label">Quality Score <span class="required-mark">*</span></label>
                     <select class="form-select" id="qualityScore">
-                        <option value="">请选择</option>
-                        <option value="1">优秀 (1分)</option>
-                        <option value="0.8">良好 (0.8分)</option>
-                        <option value="0.6">一般 (0.6分)</option>
-                        <option value="0.4">较差 (0.4分)</option>
-                        <option value="0.2">很差 (0.2分)</option>
+                        <option value="">Please select</option>
+                        <option value="1">Excellent (1.0)</option>
+                        <option value="0.8">Good (0.8)</option>
+                        <option value="0.6">Fair (0.6)</option>
+                        <option value="0.4">Poor (0.4)</option>
+                        <option value="0.2">Very Poor (0.2)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">标注备注</label>
+                    <label class="form-label">Annotation Comment</label>
                     <textarea class="form-textarea" id="annotationComment" rows="3" 
-                        placeholder="可选输入备注..." style="min-height: 70px;"></textarea>
+                        placeholder="Optional, enter comments..." style="min-height: 70px;"></textarea>
                 </div>
             </div>
             
@@ -872,20 +872,20 @@ function renderAnnotationForm(data) {
     `;
 }
 
-// 审核操作区 - 只显示审核按钮，不显示标注表单
+// Review Action Area - Show review buttons only, no annotation form
 function renderReviewSection(data) {
     return `
         <div class="review-section">
             <div class="review-header">
                 <span class="review-icon">👁️</span>
-                <span class="review-title">标注审核</span>
+                <span class="review-title">Annotation Review</span>
             </div>
             <div class="review-actions">
                 <button class="btn btn-success" onclick="approveData('${data.data_id}')">
-                    ✅ 标注审核通过
+                    ✅ Approve Annotation
                 </button>
                 <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
-                    ❌ 标注审核拒绝
+                    ❌ Reject Annotation
                 </button>
             </div>
         </div>
@@ -893,7 +893,7 @@ function renderReviewSection(data) {
 }
 
 // ============================================================================
-// 标注操作
+// Annotation Operations
 // ============================================================================
 
 async function submitAnnotation(dataId) {
@@ -902,14 +902,14 @@ async function submitAnnotation(dataId) {
     const score = document.getElementById('qualityScore')?.value;
     const comment = document.getElementById('annotationComment')?.value;
     
-    // 质量评分必选验证
+    // Quality score required validation
     if (!score) {
-        showToast('请选择质量评分', 'warning');
+        showToast('Please select quality score', 'warning');
         return;
     }
     
     if (!question && !answer && !comment) {
-        showToast('请至少填写修正内容或备注', 'warning');
+        showToast('Please fill in at least one correction or comment', 'warning');
         return;
     }
     
@@ -925,66 +925,66 @@ async function submitAnnotation(dataId) {
             scores: { overall_score: parseFloat(score) }
         });
         
-        showToast('标注成功', 'success');
+        showToast('Annotation submitted successfully', 'success');
         closeDrawer();
         loadData(state.currentPage);
         loadStats();
     } catch (error) {
-        console.error('标注失败:', error);
-        showToast('标注失败: ' + error.message, 'error');
+        console.error('Annotation failed:', error);
+        showToast('Annotation failed: ' + error.message, 'error');
     }
 }
 
 async function approveData(dataId) {
     try {
         await apiPost(`/data/${dataId}/approve`, {});
-        showToast('已通过', 'success');
+        showToast('Approved', 'success');
         closeDrawer();
         loadData(state.currentPage);
         loadStats();
     } catch (error) {
-        console.error('操作失败:', error);
-        showToast('操作失败', 'error');
+        console.error('Operation failed:', error);
+        showToast('Operation failed', 'error');
     }
 }
 
 async function rejectData(dataId) {
-    // 显示自定义拒绝原因输入框
+    // Show custom reject reason input dialog
     showRejectDialog(dataId);
 }
 
-// 显示拒绝原因输入对话框
+// Show Reject Reason Input Dialog
 function showRejectDialog(dataId) {
     const drawerBody = document.getElementById('drawerBody');
 
-    // 创建自定义对话框
+    // Create custom dialog
     const dialog = document.createElement('div');
     dialog.className = 'reject-dialog-overlay';
     dialog.innerHTML = `
         <div class="reject-dialog">
             <div class="reject-dialog-header">
-                <span>❌ 标注审核拒绝</span>
+                <span>❌ Reject Annotation</span>
                 <button class="reject-dialog-close" onclick="closeRejectDialog()">×</button>
             </div>
             <div class="reject-dialog-body">
-                <label class="reject-dialog-label">请输入拒绝原因:</label>
-                <textarea id="rejectReason" class="reject-dialog-textarea" rows="4" placeholder="请输入拒绝原因..."></textarea>
+                <label class="reject-dialog-label">Please enter reject reason:</label>
+                <textarea id="rejectReason" class="reject-dialog-textarea" rows="4" placeholder="Please enter reject reason..."></textarea>
             </div>
             <div class="reject-dialog-actions">
-                <button class="btn btn-secondary" onclick="closeRejectDialog()">取消</button>
-                <button class="btn btn-danger" onclick="confirmReject('${dataId}')">确认拒绝</button>
+                <button class="btn btn-secondary" onclick="closeRejectDialog()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmReject('${dataId}')">Confirm Reject</button>
             </div>
         </div>
     `;
 
     document.body.appendChild(dialog);
 
-    // 聚焦到输入框
+    // Focus on input
     setTimeout(() => {
         document.getElementById('rejectReason').focus();
     }, 100);
 
-    // 点击遮罩关闭
+    // Click overlay to close
     dialog.addEventListener('click', function(e) {
         if (e.target === dialog) {
             closeRejectDialog();
@@ -992,7 +992,7 @@ function showRejectDialog(dataId) {
     });
 }
 
-// 关闭拒绝对话框
+// Close Reject Dialog
 function closeRejectDialog() {
     const dialog = document.querySelector('.reject-dialog-overlay');
     if (dialog) {
@@ -1000,25 +1000,25 @@ function closeRejectDialog() {
     }
 }
 
-// 确认拒绝操作
+// Confirm Reject Operation
 async function confirmReject(dataId) {
     const rejectReason = document.getElementById('rejectReason')?.value || '';
     closeRejectDialog();
 
     try {
         await apiPost(`/data/${dataId}/reject`, { reject_reason: rejectReason });
-        showToast('已拒绝', 'success');
+        showToast('Rejected', 'success');
         closeDrawer();
         loadData(state.currentPage);
         loadStats();
     } catch (error) {
-        console.error('操作失败:', error);
-        showToast('操作失败', 'error');
+        console.error('Operation failed:', error);
+        showToast('Operation failed', 'error');
     }
 }
 
 // ============================================================================
-// 抽屉控制
+// Drawer Control
 // ============================================================================
 
 function openDrawer() {
@@ -1034,7 +1034,7 @@ function closeDrawer() {
 }
 
 // ============================================================================
-// 侧边栏展开/收起
+// Sidebar Expand/Collapse
 // ============================================================================
 
 function toggleSection(sectionId) {
@@ -1053,18 +1053,18 @@ function toggleSection(sectionId) {
 }
 
 // ============================================================================
-// 初始化
+// Initialization
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('QA Annotation Platform initialized (新版-旧版风格)');
+    console.log('QA Annotation Platform initialized (New Version - Legacy Style)');
 
     initSidebarResize();
     initTableColumnResize();
     setDefaultTimeRange();
 
-    // 监听时间变化 - 原生 datetime-local 控件在选择时间后会触发 change 事件
-    // 我们阻止默认行为，只让值更新，不触发搜索
+    // Listen for time changes - native datetime-local control triggers change event after selecting time
+    // We prevent default behavior, only let value update, don't trigger search
     const startInput = document.getElementById('filterStartTime');
     const endInput = document.getElementById('filterEndTime');
 
@@ -1076,16 +1076,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (startInput) startInput.addEventListener('change', handleTimeChange, { capture: true });
     if (endInput) endInput.addEventListener('change', handleTimeChange, { capture: true });
 
-    // 加载数据和统计
+    // Load data and statistics
     Promise.all([
         loadStats(),
         loadData()
     ]).catch(error => {
-        console.error('初始化加载失败:', error);
+        console.error('Initialization load failed:', error);
     });
 });
 
-// 导出全局函数
+// Export Global Functions
 window.changePage = changePage;
 window.applyFilters = applyFilters;
 window.resetFilters = resetFilters;

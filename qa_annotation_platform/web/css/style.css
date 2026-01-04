@@ -1,4 +1,4 @@
-/* QA标注平台样式 - 与index.html保持一致的开源项目风格 */
+/* QA Annotation Platform Styles - Consistent Open Source Project Style with index.html */
 
 html,
 body {
@@ -13,7 +13,7 @@ body {
     box-sizing: border-box;
 }
 
-/* 页面布局 */
+/* Page Layout */
 .annotation-wrapper {
     display: flex;
     flex-direction: column;
@@ -21,7 +21,7 @@ body {
     background-color: #fff;
 }
 
-/* 顶部导航 */
+/* Header Navigation */
 .annotation-header {
     width: 100%;
     height: 56px;
@@ -48,7 +48,7 @@ body {
     gap: 8px;
 }
 
-/* 主体布局 */
+/* Main Layout */
 .annotation-body {
     display: flex;
     flex: 1;
@@ -56,7 +56,7 @@ body {
     position: relative;
 }
 
-/* 左侧边栏 */
+/* Left Sidebar */
 .annotation-sidebar {
     width: 280px;
     background: #fff;
@@ -68,7 +68,7 @@ body {
     position: relative;
 }
 
-/* 全局过滤区域 */
+/* Global Filter Area */
 .global-filter-section {
     background: #fff;
     border-bottom: 1px solid #E8E8EB;
@@ -121,7 +121,7 @@ body {
     border-color: #155EEF;
 }
 
-/* 搜索输入框包装 */
+/* Search Input Wrapper */
 .search-input-wrapper {
     display: flex;
     gap: 4px;
@@ -153,7 +153,7 @@ body {
     margin-top: 12px;
 }
 
-/* 侧边栏区域通用样式 */
+/* Sidebar Section Common Style */
 .sidebar-section {
     border-bottom: 1px solid #F0F0F5;
 }
@@ -192,7 +192,7 @@ body {
     color: #999;
 }
 
-/* 拖拽调整宽度 */
+/* Drag to Resize */
 .sidebar-resize-handle {
     position: absolute;
     right: -4px;
@@ -221,13 +221,13 @@ body {
     border-radius: 1px;
 }
 
-/* 进度条样式 */
+/* Progress Bar Style */
 .progress-section {
     padding: 12px 16px;
     background: #fff;
 }
 
-/* 2x2统计块 */
+/* 2x2 Stats Grid */
 .stats-grid-2x2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -255,11 +255,8 @@ body {
 }
 
 .stat-block.pending .stat-value { color: #F59E0B; }
-
 .stat-block.annotated .stat-value { color: #10B981; }
-
 .stat-block.approved .stat-value { color: #155EEF; }
-
 .stat-block.rejected .stat-value { color: #EF4444; }
 
 .progress-bar-container {
@@ -289,7 +286,6 @@ body {
 .progress-bar-fill.approved { background: #155EEF; }
 .progress-bar-fill.annotated { background: #10B981; }
 .progress-bar-fill.pending { background: #F59E0B; }
-
 .progress-bar-fill.rejected { background: #EF4444; }
 
 .progress-bar-legend {
@@ -317,7 +313,7 @@ body {
 .legend-dot.pending { background: #F59E0B; }
 .legend-dot.rejected { background: #EF4444; }
 
-/* 主内容区 */
+/* Main Content Area */
 .annotation-main {
     flex: 1;
     display: flex;
@@ -354,7 +350,7 @@ body {
     color: #666;
 }
 
-/* QA列表表格 */
+/* QA List Table */
 .qa-table-container {
     flex: 1;
     overflow: auto;
@@ -504,7 +500,7 @@ body {
     font-size: 11px;
 }
 
-/* Group/Trace完整展示样式 */
+/* Group/Trace Complete Display Style */
 .group-trace-full {
     display: flex;
     flex-direction: column;
@@ -533,7 +529,7 @@ body {
     color: #155EEF;
 }
 
-/* 数据类型标签 */
+/* Data Type Tag */
 .data-type-tag {
     display: inline-block;
     padding: 2px 6px;
@@ -548,7 +544,7 @@ body {
 .data-type-tag[data-type="tool"] { background: #D1FAE5; color: #059669; }
 .data-type-tag[data-type="custom"] { background: #F3F4F6; color: #6B7280; }
 
-/* 空状态 */
+/* Empty State */
 .empty-state {
     display: none;
     flex-direction: column;
@@ -567,7 +563,7 @@ body {
     margin: 0;
 }
 
-/* 分页 */
+/* Pagination */
 .pagination {
     padding: 12px 24px;
     background: #fff;
@@ -616,7 +612,7 @@ body {
     font-size: 12px;
 }
 
-/* 按钮样式 */
+/* Button Style */
 .btn {
     padding: 8px 14px;
     border: none;
@@ -689,7 +685,7 @@ body {
     background: #0D47A1;
 }
 
-/* 滚动条样式 */
+/* Scrollbar Style */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -700,7 +696,7 @@ body {
     border-radius: 3px;
 }
 
-/* Toast提示 */
+/* Toast Notification */
 .toast {
     position: fixed;
     top: 70px;
@@ -729,7 +725,7 @@ body {
     opacity: 0;
 }
 
-/* 列宽拖拽代理 */
+/* Column Width Drag Proxy */
 .resizing-proxy {
     position: absolute;
     top: 0;
@@ -740,7 +736,7 @@ body {
     z-index: 100;
 }
 
-/* 调用关系样式 */
+/* Call Relationship Style */
 .qa-relation {
     display: inline-flex;
     align-items: center;
@@ -764,7 +760,7 @@ body {
     color: #059669;
 }
 
-/* 响应式 */
+/* Responsive */
 @media (max-width: 1200px) {
     .annotation-sidebar {
         width: 260px;

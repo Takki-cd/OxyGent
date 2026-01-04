@@ -1,7 +1,7 @@
 """
-QA标注平台 - 数据模型定义
+QA Annotation Platform - Data Model Definition
 
-简化版：删除层级关系，按group_id/trace_id聚合
+Simplified: Delete hierarchical relationships, aggregate by group_id/trace_id
 """
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -12,77 +12,77 @@ import hashlib
 
 
 class DataType(str, Enum):
-    """数据类型（描述数据来源类型）"""
-    E2E = "e2e"              # 端到端（用户->Agent）
-    AGENT = "agent"          # Agent调用
-    LLM = "llm"              # LLM调用
-    TOOL = "tool"            # Tool调用
-    CUSTOM = "custom"        # 自定义
+    """Data Type (describes data source type)"""
+    E2E = "e2e"              # End-to-End (User -> Agent)
+    AGENT = "agent"          # Agent Call
+    LLM = "llm"              # LLM Call
+    TOOL = "tool"            # Tool Call
+    CUSTOM = "custom"        # Custom
 
 
 class Priority(int, Enum):
-    """优先级定义"""
-    P0 = 0       # 端到端（最高优先级）
-    P1 = 1       # 一级子节点
-    P2 = 2       # 二级子节点
-    P3 = 3       # 三级子节点
-    P4 = 4       # 其他
+    """Priority Definition"""
+    P0 = 0       # End-to-End (Highest Priority)
+    P1 = 1       # Level 1 Child Node
+    P2 = 2       # Level 2 Child Node
+    P3 = 3       # Level 3 Child Node
+    P4 = 4       # Other
 
 
 class DataStatus(str, Enum):
-    """数据状态"""
-    PENDING = "pending"       # 待标注
-    ANNOTATED = "annotated"   # 已标注
-    APPROVED = "approved"     # 已通过
-    REJECTED = "rejected"     # 已拒绝
+    """Data Status"""
+    PENDING = "pending"       # Pending Annotation
+    ANNOTATED = "annotated"   # Annotated
+    APPROVED = "approved"     # Approved
+    REJECTED = "rejected"     # Rejected
 
 
-# ==================== 请求模型 ====================
+# ==================== Request Models ====================
 
 class DepositRequest(BaseModel):
     """
-    注入数据请求
+    Deposit Data Request
     
-    核心字段说明：
-    - source_trace_id: 来自Oxygent的current_trace_id（必填）
-    - source_request_id: 来自Oxygent的request_id（必填）
-    - source_group_id: 来自Oxygent的group_id（可选，用于会话聚合）
-    - question: 问题/输入（必填）
-    - answer: 答案/输出（可选）
-    - caller: 调用者（必填，如user/agent名称）
-    - callee: 被调用者（必填，如agent/tool/llm名称）
-    - priority: 优先级（可选，默认0，P0=端到端）
-    - data_type: 数据类型（可选，用于标注时区分来源）
+    Core Field Description:
+    - source_trace_id: From Oxygent's current_trace_id (required)
+    - source_request_id: From Oxygent's request_id (required)
+    - source_group_id: From Oxygent's group_id (optional, for session aggregation)
+    - question: Question/Input (required)
+    - answer: Answer/Output (optional)
+    - caller: Caller (required, e.g., user/agent name)
+    - callee: Callee (required, e.g., agent/tool/llm name)
+    - priority: Priority (optional, default 0, P0=End-to-End)
+    - data_type: Data type (optional, used to distinguish source during annotation)
     """
-    # 必填：来源追溯信息
-    source_trace_id: str = Field(..., description="原始trace_id（来自OxyRequest.current_trace_id）")
-    source_request_id: str = Field(..., description="原始request_id（来自OxyRequest.request_id）")
-    source_group_id: Optional[str] = Field(None, description="group_id（来自OxyRequest.group_id）")
+    # Required: Source tracing information
+    source_trace_id: str = Field(..., description="Original trace_id (from OxyRequest.current_trace_id)")
+    source_request_id: str = Field(..., description="Original request_id (from OxyRequest.request_id)")
+    source_group_id: Optional[str] = Field(None, description="group_id (from OxyRequest.group_id)")
     
-    # 必填：QA内容
-    question: str = Field(..., description="问题/输入")
-    answer: str = Field("", description="答案/输出")
+    # Required: QA Content
+    question: str = Field(..., description="Question/Input")
+    answer: str = Field("", description="Answer/Output")
     
-    # 必填：调用链信息（caller/callee）
-    caller: str = Field(..., description="调用者（user/agent名称）")
-    callee: str = Field(..., description="被调用者（agent/tool/llm名称）")
+    # Required: Call Chain Information (caller/callee)
+    caller: str = Field(..., description="Caller (user/agent name)")
+    callee: str = Field(..., description="Callee (agent/tool/llm name)")
     
-    # 可选：调用类型（预占，用于未来扩展）
-    caller_type: Optional[str] = Field(None, description="调用者类型（预占）")
-    callee_type: Optional[str] = Field(None, description="被调用者类型（预占）")
+    # Optional: Call type (reserved, for future expansion)
+    caller_type: Optional[str] = Field(None, description="Caller type (reserved)")
+    callee_type: Optional[str] = Field(None, description="Callee type (reserved)")
     
-    # 可选：数据类型（用于标注时区分来源）
-    data_type: Optional[str] = Field(None, description="数据类型：e2e/agent/llm/tool/custom")
+    # Optional: Data type (used to distinguish source during annotation)
+    data_type: Optional[str] = Field(None, description="Data type: e2e/agent/llm/tool/custom")
     
-    # 可选：优先级（端到端必须为P0=0，其他按需设置）
-    priority: int = Field(0, ge=0, le=4, description="优先级0-4，P0=端到端")
+    # Optional: Priority (End-to-End must be P0=0, others as needed)
+    priority: int = Field(0, ge=0, le=4, description="Priority 0-4, P0=End-to-End")
     
-    # 可选：分类与标签
-    category: Optional[str] = Field(None, description="分类")
-    tags: List[str] = Field(default_factory=list, description="标签")
+    # Optional: Category & Tags
+    category: Optional[str] = Field(None, description="Category")
+    tags: List[str] = Field(default_factory=list, description="Tags")
     
-    # 可选：额外数据
-    extra: Dict[str, Any] = Field(default_factory=dict, description="额外数据")
+    # Optional: Extra Data
+    extra: Dict[str, Any] = Field(default_factory=dict, description="Extra data")
     
     class Config:
         json_schema_extra = {
@@ -90,23 +90,23 @@ class DepositRequest(BaseModel):
                 "source_trace_id": "abc123",
                 "source_request_id": "req_001",
                 "source_group_id": "session_001",
-                "question": "用户输入",
-                "answer": "Agent输出",
+                "question": "User input",
+                "answer": "Agent output",
                 "caller": "user",
                 "callee": "my_agent",
                 "data_type": "e2e",
-                "priority": 0  # 端到端必须是P0
+                "priority": 0  # End-to-End must be P0
             }
         }
     
     def compute_data_hash(self) -> str:
-        """计算数据去重hash"""
+        """Compute data deduplication hash"""
         content = f"{self.source_trace_id}:{self.source_request_id}:{self.question}:{self.answer}"
         return hashlib.md5(content.encode()).hexdigest()
 
 
 class BatchDepositRequest(BaseModel):
-    """批量注入请求"""
+    """Batch Deposit Request"""
     items: List[DepositRequest]
     
     class Config:
@@ -117,18 +117,18 @@ class BatchDepositRequest(BaseModel):
                         "source_trace_id": "abc123",
                         "source_request_id": "req_001",
                         "source_group_id": "session_001",
-                        "question": "用户输入",
-                        "answer": "Agent输出",
+                        "question": "User input",
+                        "answer": "Agent output",
                         "caller": "user",
                         "callee": "my_agent",
-                        "priority": 0  # 端到端
+                        "priority": 0  # End-to-End
                     },
                     {
                         "source_trace_id": "abc123",
                         "source_request_id": "req_002",
                         "source_group_id": "session_001",
-                        "question": "LLM调用",
-                        "answer": "LLM回答",
+                        "question": "LLM call",
+                        "answer": "LLM response",
                         "caller": "my_agent",
                         "callee": "gpt-4",
                         "priority": 2
@@ -138,71 +138,71 @@ class BatchDepositRequest(BaseModel):
         }
 
 
-# ==================== 存储模型 ====================
+# ==================== Storage Models ====================
 
 class QAData(BaseModel):
     """
-    QA数据（存储模型）
+    QA Data (Storage Model)
     
-    简化设计：
-    - 一个唯一ID（data_id）替代qa_id和task_id
-    - 按group_id/trace_id聚合，不再有parent_qa_id
-    - 端到端通过priority=0标识
-    - 使用caller/callee描述调用链
+    Simplified Design:
+    - One unique ID (data_id) instead of qa_id and task_id
+    - Aggregate by group_id/trace_id, no parent_qa_id
+    - End-to-End identified by priority=0
+    - Use caller/callee to describe call chain
     """
-    # 唯一ID（替代qa_id和task_id）
+    # Unique ID (instead of qa_id and task_id)
     data_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     
-    # QA内容
+    # QA Content
     question: str
     answer: str = ""
     data_hash: str
     
-    # 来源追溯
+    # Source Tracing
     source_trace_id: str
     source_request_id: str
     source_group_id: str = ""
     
-    # 调用链信息
+    # Call Chain Information
     caller: str
     callee: str
-    caller_type: str = ""  # 预占：调用者类型
-    callee_type: str = ""  # 预占：被调用者类型
+    caller_type: str = ""  # Reserved: Caller type
+    callee_type: str = ""  # Reserved: Callee type
     
-    # 数据类型（用于标注时区分来源）
+    # Data Type (used to distinguish source during annotation)
     data_type: str = ""
     
-    # 优先级（端到端=0，子节点>0）
+    # Priority (End-to-End=0, Child nodes>0)
     priority: int = 4
     
-    # 分类与标签
+    # Category & Tags
     category: str = ""
     tags: List[str] = Field(default_factory=list)
     
-    # 状态
+    # Status
     status: str = DataStatus.PENDING.value
     
-    # 标注结果
+    # Annotation Result
     annotation: Dict[str, Any] = Field(default_factory=dict)
     scores: Dict[str, Any] = Field(default_factory=dict)
     
-    # 批次信息
+    # Batch Information
     batch_id: str = ""
     
-    # 时间戳
+    # Timestamp
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
-    # 额外数据
+    # Extra Data
     extra: Dict[str, Any] = Field(default_factory=dict)
     
     class Config:
         from_attributes = True
     
     def to_es_doc(self) -> Dict[str, Any]:
-        """转换为ES文档"""
+        """Convert to ES document"""
         data = self.model_dump()
-        # 转换datetime为字符串
+        # Convert datetime to string
         data["created_at"] = self.created_at.strftime("%Y-%m-%d %H:%M:%S.%f")
         data["updated_at"] = self.updated_at.strftime("%Y-%m-%d %H:%M:%S.%f")
         return data
@@ -213,8 +213,8 @@ class QAData(BaseModel):
         request: DepositRequest,
         batch_id: str = ""
     ) -> "QAData":
-        """从DepositRequest创建QAData"""
-        # 自动推断data_type
+        """Create QAData from DepositRequest"""
+        # Auto-infer data_type
         data_type = request.data_type
         if data_type is None:
             data_type = cls._infer_data_type(request)
@@ -240,12 +240,12 @@ class QAData(BaseModel):
     
     @staticmethod
     def _infer_data_type(request: DepositRequest) -> str:
-        """推断数据类型"""
-        # P0端到端
+        """Infer data type"""
+        # P0 End-to-End
         if request.priority == 0:
             return "e2e"
         
-        # 根据callee推断
+        # Infer by callee
         callee_lower = request.callee.lower()
         if any(keyword in callee_lower for keyword in ["llm", "gpt", "model", "openai", "anthropic"]):
             return "llm"
@@ -257,17 +257,17 @@ class QAData(BaseModel):
         return "custom"
 
 
-# ==================== 响应模型 ====================
+# ==================== Response Models ====================
 
 class DepositResponse(BaseModel):
-    """注入响应"""
+    """Deposit Response"""
     success: bool
     data_id: str
     message: str
 
 
 class BatchDepositResponse(BaseModel):
-    """批量注入响应"""
+    """Batch Deposit Response"""
     success: bool
     total: int
     success_count: int
@@ -278,7 +278,7 @@ class BatchDepositResponse(BaseModel):
 
 
 class DataResponse(BaseModel):
-    """数据响应（替代TaskResponse）"""
+    """Data Response (instead of TaskResponse)"""
     data_id: str
     question: str
     answer: str
@@ -287,14 +287,14 @@ class DataResponse(BaseModel):
     source_group_id: str
     caller: str
     callee: str
-    caller_type: str  # 预占
-    callee_type: str  # 预占
+    caller_type: str  # Reserved
+    callee_type: str  # Reserved
     data_type: str
     priority: int
     status: str
     annotation: Dict[str, Any]
     scores: Dict[str, Any]
-    reject_reason: str = ""  # 拒绝原因
+    reject_reason: str = ""  # Reject reason
     created_at: datetime
     updated_at: datetime
     
@@ -303,7 +303,7 @@ class DataResponse(BaseModel):
 
 
 class DataFilter(BaseModel):
-    """数据过滤条件"""
+    """Data Filter Conditions"""
     caller: Optional[str] = None
     callee: Optional[str] = None
     data_type: Optional[str] = None
@@ -314,12 +314,12 @@ class DataFilter(BaseModel):
     search_text: Optional[str] = None
     group_id: Optional[str] = None
     trace_id: Optional[str] = None
-    request_id: Optional[str] = None  # 按request_id精确匹配
-    show_p0_only: bool = False  # 只显示P0
+    request_id: Optional[str] = None  # Exact match by request_id
+    show_p0_only: bool = False  # Only show P0
 
 
 class StatsResponse(BaseModel):
-    """统计响应"""
+    """Statistics Response"""
     total: int
     pending: int
     annotated: int
@@ -332,7 +332,7 @@ class StatsResponse(BaseModel):
 
 
 class AnnotationUpdate(BaseModel):
-    """标注更新请求"""
+    """Annotation Update Request"""
     status: Optional[str] = None
     annotation: Optional[Dict[str, Any]] = None
     scores: Optional[Dict[str, Any]] = None

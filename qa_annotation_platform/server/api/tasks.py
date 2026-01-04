@@ -1,11 +1,11 @@
 """
-数据管理接口（简化版）
+Data Management API (Simplified)
 
-替代原来的tasks接口，简化设计：
-- 按group_id/trace_id聚合，不再有层级关系
-- 先关注P0，再显示关联子对
-- 简化ID设计（统一用data_id）
-- 使用caller/callee描述调用链
+Replace original tasks API, simplified design:
+- Aggregate by group_id/trace_id, no hierarchical relationships
+- Focus on P0 first, then show related child pairs
+- Simplified ID design (unified use data_id)
+- Use caller/callee to describe call chain
 """
 from datetime import datetime
 from typing import Optional, List
@@ -20,10 +20,10 @@ from ..models import (
 from ..services.annotation_service import get_annotation_service
 
 
-router = APIRouter(prefix="/api/v1/data", tags=["数据管理"])
+router = APIRouter(prefix="/api/v1/data", tags=["Data Management"])
 
 
-# 拒绝请求体模型
+# Reject Request Body Model
 class RejectRequest(BaseModel):
     reject_reason: str = ""
 
@@ -46,22 +46,22 @@ async def get_data_list(
     page_size: int = Query(20, ge=1, le=100)
 ):
     """
-    获取数据列表（支持过滤和分页）
+    Get data list (support filtering and pagination)
 
-    查询参数：
-    - caller: 调用者过滤
-    - callee: 被调用者过滤
-    - data_type: 数据类型过滤（e2e/agent/llm/tool/custom）
-    - status: 状态过滤（pending/annotated/approved/rejected）
-    - priority: 优先级过滤（0-4，P0=端到端）
-    - start_time/end_time: 时间范围
-    - search: 全文搜索（搜索question/answer/caller/callee）
-    - group_id: 按会话组过滤
-    - trace_id: 按trace_id过滤
-    - request_id: 按request_id精确匹配
-    - show_p0_only: 是否只显示P0（端到端）
-    - page: 页码（从1开始）
-    - page_size: 每页数量（最大100）
+    Query parameters:
+    - caller: Caller filter
+    - callee: Callee filter
+    - data_type: Data type filter (e2e/agent/llm/tool/custom)
+    - status: Status filter (pending/annotated/approved/rejected)
+    - priority: Priority filter (0-4, P0=End-to-End)
+    - start_time/end_time: Time range
+    - search: Full-text search (search question/answer/caller/callee)
+    - group_id: Filter by session group
+    - trace_id: Filter by trace_id
+    - request_id: Exact match by request_id
+    - show_p0_only: Only show P0 (End-to-End)
+    - page: Page number (starting from 1)
+    - page_size: Items per page (max 100)
     """
     service = get_annotation_service()
 
@@ -97,14 +97,14 @@ async def get_data_list(
 @router.get("/{data_id}")
 async def get_data(data_id: str):
     """
-    获取数据详情
+    Get data details
     """
     service = get_annotation_service()
     
     data = await service.get_data_by_id(data_id)
     
     if not data:
-        raise HTTPException(status_code=404, detail="数据不存在")
+        raise HTTPException(status_code=404, detail="Data not found")
     
     return DataResponse(**data)
 
@@ -115,12 +115,12 @@ async def update_annotation(
     update: AnnotationUpdate
 ):
     """
-    更新标注结果
+    Update annotation result
     
-    请求体：
-    - status: 新状态（可选）
-    - annotation: 标注结果（可选，任意KV结构）
-    - scores: 评分（可选）
+    Request body:
+    - status: New status (optional)
+    - annotation: Annotation result (optional, any KV structure)
+    - scores: Scores (optional)
     """
     service = get_annotation_service()
     
@@ -135,10 +135,10 @@ async def update_annotation(
 @router.get("/trace/{trace_id}")
 async def get_data_by_trace(trace_id: str):
     """
-    根据trace_id获取所有关联数据
+    Get all related data by trace_id
     
-    返回该trace_id下所有优先级的数据（按优先级排序）。
-    先显示P0（端到端），再显示子节点。
+    Return all data under this trace_id (sorted by priority).
+    Show P0 (End-to-End) first, then child nodes.
     """
     service = get_annotation_service()
     
@@ -154,9 +154,9 @@ async def get_data_by_trace(trace_id: str):
 @router.get("/group/{group_id}")
 async def get_data_by_group(group_id: str, limit: int = Query(100, ge=1, le=1000)):
     """
-    根据group_id获取所有关联数据
+    Get all related data by group_id
     
-    返回该group_id下所有trace的数据（用于会话聚合查看）。
+    Return all trace data under this group_id (for session aggregation view).
     """
     service = get_annotation_service()
     
@@ -175,9 +175,9 @@ async def get_groups_summary(
     page_size: int = Query(20, ge=1, le=100)
 ):
     """
-    获取分组汇总（按group_id聚合）
+    Get grouped summary (aggregate by group_id)
     
-    返回各group的统计信息，用于标注平台的分组视图。
+    Return statistics for each group, used for annotation platform's group view.
     """
     service = get_annotation_service()
     
@@ -189,7 +189,7 @@ async def get_groups_summary(
 @router.post("/{data_id}/approve")
 async def approve_data(data_id: str):
     """
-    审核通过
+    Approve review
     """
     service = get_annotation_service()
     result = await service.approve(data_id)
@@ -203,7 +203,7 @@ async def approve_data(data_id: str):
 @router.post("/{data_id}/reject")
 async def reject_data(data_id: str, request: RejectRequest):
     """
-    审核拒绝
+    Reject review
     """
     service = get_annotation_service()
     result = await service.reject(data_id, request.reject_reason)

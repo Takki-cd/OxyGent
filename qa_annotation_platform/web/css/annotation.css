@@ -1,6 +1,6 @@
-/* 标注抽屉样式 - 简约精美设计 */
+/* Annotation Drawer Styles - Simple and Elegant Design */
 
-/* 抽屉遮罩 */
+/* Drawer Overlay */
 .drawer-overlay {
     position: fixed;
     top: 0;
@@ -19,7 +19,7 @@
     visibility: visible;
 }
 
-/* 抽屉容器 - 占50%空间 */
+/* Drawer Container - 50% space */
 .drawer {
     position: fixed;
     top: 0;
@@ -38,7 +38,7 @@
     right: 0;
 }
 
-/* 抽屉头部 */
+/* Drawer Header */
 .drawer-header {
     padding: 14px 20px;
     background: #155EEF;
@@ -73,7 +73,7 @@
     background: rgba(255, 255, 255, 0.3);
 }
 
-/* 抽屉内容区 */
+/* Drawer Content Area */
 .drawer-body {
     flex: 1;
     overflow-y: auto;
@@ -82,7 +82,7 @@
 }
 
 /* ============================================================================ */
-/* 基本信息区域 - 精简版 */
+/* Basic Info Area - Simplified Version */
 /* ============================================================================ */
 
 .detail-meta-section {
@@ -100,7 +100,7 @@
     flex-wrap: wrap;
 }
 
-/* 精简版元信息布局 */
+/* Simplified Meta Info Layout */
 .meta-info-compact {
     display: flex;
     flex-direction: column;
@@ -220,7 +220,7 @@
     margin-right: 6px;
 }
 
-/* 三列表格样式 - 新版 */
+/* 3-column Table Style - New Version */
 .meta-table {
     width: 100%;
     border-collapse: collapse;
@@ -279,7 +279,7 @@
 }
 
 /* ============================================================================ */
-/* QA区域 */
+/* QA Area */
 /* ============================================================================ */
 
 .detail-qa-section {
@@ -345,7 +345,7 @@
 }
 
 /* ============================================================================ */
-/* 标注结果展示 */
+/* Annotation Result Display */
 /* ============================================================================ */
 
 .detail-annotation-section {
@@ -389,7 +389,7 @@
 }
 
 /* ============================================================================ */
-/* 拒绝原因展示样式 */
+/* Reject Reason Display Style */
 /* ============================================================================ */
 
 .reject-reason-section {
@@ -410,7 +410,7 @@
 }
 
 /* ============================================================================ */
-/* 审核操作区样式 - 简化版，无扎眼绿色分区 */
+/* Review Action Area Style - Simplified Version, No Eye-catching Green Sections */
 /* ============================================================================ */
 
 .review-section {
@@ -453,7 +453,7 @@
     padding: 12px 16px;
 }
 
-/* KV表格展示样式 */
+/* KV Table Display Style */
 .annotation-kv-table {
     width: 100%;
     border-collapse: collapse;
@@ -498,7 +498,7 @@
 }
 
 /* ============================================================================ */
-/* 标注表单 */
+/* Annotation Form */
 /* ============================================================================ */
 
 .annotation-form {
@@ -597,7 +597,7 @@
 }
 
 /* ============================================================================ */
-/* 状态标签样式 - 与列表页一致 */
+/* Status Tag Style - Consistent with List Page */
 /* ============================================================================ */
 
 .detail-meta-section .qa-priority {
@@ -646,7 +646,7 @@
 .detail-meta-section .data-type-tag[data-type="custom"] { background: #F3F4F6; color: #6B7280; }
 
 /* ============================================================================ */
-/* 响应式调整 */
+/* Responsive Adjustments */
 /* ============================================================================ */
 
 @media (max-width: 1200px) {
@@ -684,7 +684,7 @@
 }
 
 /* ============================================================================ */
-/* 拒绝对话框样式 */
+/* Reject Dialog Style */
 /* ============================================================================ */
 
 .reject-dialog-overlay {

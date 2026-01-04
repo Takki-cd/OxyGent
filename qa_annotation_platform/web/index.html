@@ -1,75 +1,75 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QA标注平台 - OxyGent</title>
+    <title>QA Annotation Platform - OxyGent</title>
     <link rel="stylesheet" href="./css/style.css?v=4">
     <link rel="stylesheet" href="./css/annotation.css?v=3">
 </head>
 <body>
     <div class="annotation-wrapper">
-        <!-- 顶部导航 -->
+        <!-- Header Navigation -->
         <header class="annotation-header">
             <div class="logo">
-                <h1>QA标注平台</h1>
+                <h1>QA Annotation Platform</h1>
             </div>
             <div class="header-actions">
                 <button class="btn btn-secondary btn-small" onclick="applyFilters()">
-                    查询
+                    Search
                 </button>
             </div>
         </header>
 
-        <!-- 主体内容 -->
+        <!-- Main Content -->
         <main class="annotation-body">
-            <!-- 左侧边栏 -->
+            <!-- Left Sidebar -->
             <aside class="annotation-sidebar" id="annotationSidebar">
-                <!-- 拖拽调整宽度 -->
+                <!-- Drag to resize -->
                 <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
 
-                <!-- 全局过滤条件 -->
+                <!-- Global Filter Conditions -->
                 <div class="sidebar-section global-filter-section">
                     <div class="sidebar-section-header" onclick="toggleSection('globalFilter')">
-                        <span>🔍 过滤条件</span>
+                        <span>🔍 Filter Conditions</span>
                         <span class="toggle-icon" id="globalFilterToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="globalFilterContent">
-                        <!-- 时间范围 -->
+                        <!-- Time Range -->
                         <div class="filter-group">
-                            <div class="filter-group-title">时间范围</div>
+                            <div class="filter-group-title">Time Range</div>
                             <input type="datetime-local" id="filterStartTime" class="filter-input-full">
                             <input type="datetime-local" id="filterEndTime" class="filter-input-full" style="margin-top: 8px;">
                         </div>
 
-                        <!-- 数据类型 + 快速筛选 -->
+                        <!-- Data Type + Quick Filter -->
                         <div class="filter-group" style="margin-top: 8px;">
-                            <div class="filter-group-title">类型与状态</div>
+                            <div class="filter-group-title">Type & Status</div>
                             <select class="filter-select-full" id="filterDataType" onchange="applyFilters()">
-                                <option value="">全部类型</option>
-                                <option value="e2e">端到端</option>
+                                <option value="">All Types</option>
+                                <option value="e2e">End-to-End</option>
                                 <option value="agent">Agent</option>
                                 <option value="llm">LLM</option>
                                 <option value="tool">Tool</option>
-                                <option value="custom">自定义</option>
+                                <option value="custom">Custom</option>
                             </select>
                             <select class="filter-select-full" id="filterStatus" onchange="applyFilters()" style="margin-top: 8px;">
-                                <option value="">全部状态</option>
-                                <option value="pending">待标注</option>
-                                <option value="annotated">已标注</option>
-                                <option value="approved">已通过</option>
-                                <option value="rejected">已拒绝</option>
+                                <option value="">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="annotated">Annotated</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
                             </select>
                             <select class="filter-select-full" id="filterPriority" onchange="applyFilters()" style="margin-top: 8px;">
-                                <option value="">全部优先级</option>
-                                <option value="0">P0-端到端</option>
+                                <option value="">All Priorities</option>
+                                <option value="0">P0-End-to-End</option>
                                 <option value="1">P1-Agent</option>
                                 <option value="2">P2-LLM</option>
                                 <option value="3">P3-Tool</option>
-                                <option value="4">P4-其他</option>
+                                <option value="4">P4-Other</option>
                             </select>
                         </div>
 
@@ -77,7 +77,7 @@
                         <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">Caller</div>
                             <div class="search-input-wrapper">
-                                <input type="text" class="filter-input-full" id="filterCaller" placeholder="输入Caller...">
+                                <input type="text" class="filter-input-full" id="filterCaller" placeholder="Enter Caller...">
                                 <span class="search-icon" onclick="handleSearchClick('caller')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
@@ -91,7 +91,7 @@
                         <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">Callee</div>
                             <div class="search-input-wrapper">
-                                <input type="text" class="filter-input-full" id="filterCallee" placeholder="输入Callee...">
+                                <input type="text" class="filter-input-full" id="filterCallee" placeholder="Enter Callee...">
                                 <span class="search-icon" onclick="handleSearchClick('callee')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
@@ -105,7 +105,7 @@
                         <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">Group ID</div>
                             <div class="search-input-wrapper">
-                                <input type="text" class="filter-input-full" id="filterGroupId" placeholder="输入Group ID...">
+                                <input type="text" class="filter-input-full" id="filterGroupId" placeholder="Enter Group ID...">
                                 <span class="search-icon" onclick="handleSearchClick('group_id')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
@@ -119,7 +119,7 @@
                         <div class="filter-group" style="margin-top: 8px;">
                             <div class="filter-group-title">Trace ID</div>
                             <div class="search-input-wrapper">
-                                <input type="text" class="filter-input-full" id="filterTraceId" placeholder="输入Trace ID...">
+                                <input type="text" class="filter-input-full" id="filterTraceId" placeholder="Enter Trace ID...">
                                 <span class="search-icon" onclick="handleSearchClick('trace_id')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
@@ -129,11 +129,11 @@
                             </div>
                         </div>
 
-                        <!-- 全文搜索 -->
+                        <!-- Full-text Search -->
                         <div class="filter-group" style="margin-top: 8px;">
-                            <div class="filter-group-title">搜索</div>
+                            <div class="filter-group-title">Search</div>
                             <div class="search-input-wrapper">
-                                <input type="text" class="filter-input-full" id="filterSearch" placeholder="搜索Question内容...">
+                                <input type="text" class="filter-input-full" id="filterSearch" placeholder="Search Question content...">
                                 <span class="search-icon" onclick="handleSearchClick('search')">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"></circle>
@@ -143,47 +143,47 @@
                             </div>
                         </div>
 
-                        <!-- 操作按钮 -->
+                        <!-- Action Buttons -->
                         <div class="filter-actions">
                             <button class="btn btn-primary btn-full" onclick="applyFilters()">
-                                查询
+                                Search
                             </button>
                             <button class="btn btn-secondary btn-full" onclick="resetFilters()" style="margin-top: 8px;">
-                                重置
+                                Reset
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 标注进度 -->
+                <!-- Annotation Progress -->
                 <div class="sidebar-section">
                     <div class="sidebar-section-header" onclick="toggleSection('progress')">
-                        <span>📊 标注进度</span>
+                        <span>📊 Annotation Progress</span>
                         <span class="toggle-icon" id="progressToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="progressContent">
-                        <!-- 2x2统计块 -->
+                        <!-- 2x2 Stats Grid -->
                         <div class="stats-grid-2x2">
                             <div class="stat-block pending">
                                 <div class="stat-value" id="statPending">0</div>
-                                <div class="stat-label">待标注</div>
+                                <div class="stat-label">Pending</div>
                             </div>
                             <div class="stat-block annotated">
                                 <div class="stat-value" id="statAnnotated">0</div>
-                                <div class="stat-label">已标注</div>
+                                <div class="stat-label">Annotated</div>
                             </div>
                             <div class="stat-block approved">
                                 <div class="stat-value" id="statApproved">0</div>
-                                <div class="stat-label">已通过</div>
+                                <div class="stat-label">Approved</div>
                             </div>
                             <div class="stat-block rejected">
                                 <div class="stat-value" id="statRejected">0</div>
-                                <div class="stat-label">已拒绝</div>
+                                <div class="stat-label">Rejected</div>
                             </div>
                         </div>
-                        <!-- 进度条 -->
+                        <!-- Progress Bar -->
                         <div class="progress-bar-container">
-                            <div class="progress-bar-label">标注进度</div>
+                            <div class="progress-bar-label">Annotation Progress</div>
                             <div class="progress-bar-track">
                                 <div class="progress-bar-fill approved" id="progressApproved" style="width: 0%"></div>
                                 <div class="progress-bar-fill annotated" id="progressAnnotated" style="width: 0%"></div>
@@ -191,82 +191,82 @@
                                 <div class="progress-bar-fill pending" id="progressPending" style="width: 100%"></div>
                             </div>
                             <div class="progress-bar-legend">
-                                <span class="legend-item"><span class="legend-dot approved"></span>已通过</span>
-                                <span class="legend-item"><span class="legend-dot annotated"></span>已标注</span>
-                                <span class="legend-item"><span class="legend-dot rejected"></span>已拒绝</span>
-                                <span class="legend-item"><span class="legend-dot pending"></span>待标注</span>
+                                <span class="legend-item"><span class="legend-dot approved"></span>Approved</span>
+                                <span class="legend-item"><span class="legend-dot annotated"></span>Annotated</span>
+                                <span class="legend-item"><span class="legend-dot rejected"></span>Rejected</span>
+                                <span class="legend-item"><span class="legend-dot pending"></span>Pending</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </aside>
 
-            <!-- 主内容区 - 数据列表 -->
+            <!-- Main Content Area - Data List -->
             <section class="annotation-main">
                 <div class="main-header">
-                    <h2 class="main-title">数据列表</h2>
+                    <h2 class="main-title">Data List</h2>
                     <div class="main-actions">
-                        <span class="main-stats" id="mainStats">共 0 条</span>
+                        <span class="main-stats" id="mainStats">0 items</span>
                     </div>
                 </div>
 
-                <!-- 数据列表表格 -->
+                <!-- Data List Table -->
                 <div class="qa-table-container">
                     <table class="qa-table" id="qaTable">
                         <thead>
                             <tr>
                                 <th data-column="id" style="width: 160px;">ID</th>
-                                <th data-column="priority" style="width: 50px;">类型</th>
-                                <th data-column="status" style="width: 70px;">状态</th>
-                                <th data-column="data_type" style="width: 60px;">类型</th>
-                                <th data-column="caller_callee" style="width: 200px;">调用关系</th>
+                                <th data-column="priority" style="width: 50px;">Priority</th>
+                                <th data-column="status" style="width: 70px;">Status</th>
+                                <th data-column="data_type" style="width: 60px;">Type</th>
+                                <th data-column="caller_callee" style="width: 200px;">Call Relationship</th>
                                 <th data-column="question" style="width: 30%;">Question</th>
                                 <th data-column="group_trace" style="width: 160px;">Group / Trace</th>
-                                <th data-column="time" style="width: 140px;">时间</th>
-                                <th data-column="action" style="width: 70px;">操作</th>
+                                <th data-column="time" style="width: 140px;">Time</th>
+                                <th data-column="action" style="width: 70px;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="qaTableBody">
-                            <!-- 由JS渲染 -->
+                            <!-- Rendered by JS -->
                         </tbody>
                     </table>
 
                     <div class="empty-state" id="emptyState">
-                        <p>暂无数据，请通过API注入数据</p>
+                        <p>No data available. Please inject data via API.</p>
                         <p style="font-size: 12px; color: #999; margin-top: 8px;">
                             POST /api/v1/deposit
                         </p>
                     </div>
                 </div>
 
-                <!-- 分页 -->
+                <!-- Pagination -->
                 <div class="pagination">
-                    <span class="pagination-info" id="paginationInfo">第 1/1 页，共 0 条</span>
+                    <span class="pagination-info" id="paginationInfo">Page 1/1, 0 items</span>
                     <div class="pagination-btns" id="paginationBtns">
-                        <button class="pagination-btn" onclick="changePage(1)">首页</button>
-                        <button class="pagination-btn" onclick="changePage(state.currentPage - 1)">上一页</button>
+                        <button class="pagination-btn" onclick="changePage(1)">First</button>
+                        <button class="pagination-btn" onclick="changePage(state.currentPage - 1)">Previous</button>
                         <span class="page-num" id="pageNum">1</span>
-                        <button class="pagination-btn" onclick="changePage(state.currentPage + 1)">下一页</button>
-                        <button class="pagination-btn" onclick="changePage(state.totalPages)">末页</button>
+                        <button class="pagination-btn" onclick="changePage(state.currentPage + 1)">Next</button>
+                        <button class="pagination-btn" onclick="changePage(state.totalPages)">Last</button>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- 右侧抽屉 - 数据详情与标注 -->
+    <!-- Right Drawer - Data Detail & Annotation -->
     <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
     <aside class="drawer" id="detailDrawer">
         <div class="drawer-header">
-            <h2 class="drawer-title">数据标注</h2>
+            <h2 class="drawer-title">Data Annotation</h2>
             <button class="drawer-close" onclick="closeDrawer()">×</button>
         </div>
         <div class="drawer-body" id="drawerBody">
-            <!-- 由JS渲染 -->
+            <!-- Rendered by JS -->
         </div>
     </aside>
 
-    <!-- Flatpickr 日期时间选择器 -->
+    <!-- Flatpickr DateTime Picker -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
 

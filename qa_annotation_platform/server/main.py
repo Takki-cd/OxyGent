@@ -1,7 +1,7 @@
 """
-QA标注平台主入口
+QA Annotation Platform Main Entry
 
-独立FastAPI服务，端口8001
+Independent FastAPI service, port 8001
 """
 import logging
 import os
@@ -10,13 +10,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 
-# 相对导入（因为run.py已经添加了路径）
+# Relative imports (since run.py has already added the path)
 from .config import get_app_config
 from .api import deposit_router, tasks_router, stats_router
 from .services.es_service import init_es_service
 
 
-# 配置日志
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -26,60 +26,60 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
-    # 启动时初始化
-    logger.info("QA标注平台服务启动中...")
+    """Application lifecycle management"""
+    # Initialize on startup
+    logger.info("QA Annotation Platform service starting...")
     
     try:
-        # 初始化ES索引
+        # Initialize ES index
         await init_es_service()
-        logger.info("ES索引初始化完成")
+        logger.info("ES index initialization completed")
     except Exception as e:
-        logger.error(f"ES初始化失败: {e}")
-        # 继续启动，允许ES暂时不可用
+        logger.error(f"ES initialization failed: {e}")
+        # Continue startup, allow ES to be temporarily unavailable
     
     yield
     
-    # 关闭时清理
-    logger.info("QA标注平台服务关闭")
+    # Cleanup on shutdown
+    logger.info("QA Annotation Platform service shutting down")
 
 
 def create_app() -> FastAPI:
-    """创建FastAPI应用"""
+    """Create FastAPI application"""
     config = get_app_config()
     
     app = FastAPI(
-        title="QA标注平台API",
+        title="QA Annotation Platform API",
         description="""
-## 核心功能
+## Core Features
 
-- **注入QA数据**: `POST /api/v1/deposit` - 外部Agent调用此接口注入QA数据
-- **任务管理**: `GET/POST /api/v1/tasks` - 获取和更新任务
-- **统计分析**: `GET /api/v1/stats` - 获取统计信息
+- **Deposit QA Data**: `POST /api/v1/deposit` - External agents call this API to deposit QA data
+- **Task Management**: `GET/POST /api/v1/tasks` - Get and update tasks
+- **Statistics**: `GET /api/v1/stats` - Get statistics
 
-## 使用方式
+## Usage
 
 ```python
 import requests
 
-# 注入根节点（端到端QA）
+# Deposit root node (End-to-End QA)
 requests.post("http://localhost:8001/api/v1/deposit", json={
     "source_trace_id": "abc123",
     "source_group_id": "session_001",
-    "question": "用户输入",
-    "answer": "Agent输出",
+    "question": "User input",
+    "answer": "Agent output",
     "is_root": True,
     "priority": 0,
     "caller": "user",
     "callee": "my_agent"
 })
 
-# 注入子节点（自动串联到根节点）
+# Deposit child node (automatically linked to root node)
 requests.post("http://localhost:8001/api/v1/deposit", json={
     "source_trace_id": "abc123",
-    "question": "检索查询",
-    "answer": "检索结果",
-    "parent_qa_id": "qa_xxx",  # 指向根节点
+    "question": "Search query",
+    "answer": "Search result",
+    "parent_qa_id": "qa_xxx",  # Point to root node
     "priority": 2,
     "source_type": "agent_llm"
 })
@@ -89,7 +89,7 @@ requests.post("http://localhost:8001/api/v1/deposit", json={
         lifespan=lifespan
     )
     
-    # CORS配置
+    # CORS configuration
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins if config.cors_origins != ["*"] else ["*"],
@@ -98,17 +98,17 @@ requests.post("http://localhost:8001/api/v1/deposit", json={
         allow_headers=["*"],
     )
     
-    # 注册路由
+    # Register routes
     app.include_router(deposit_router)
     app.include_router(tasks_router)
     app.include_router(stats_router)
     
-    # 健康检查
+    # Health check
     @app.get("/health")
     async def health():
         return {"status": "ok"}
     
-    # 前端页面路由
+    # Frontend page route
     @app.get("/")
     async def root():
         """Redirect to web interface"""
@@ -132,7 +132,7 @@ requests.post("http://localhost:8001/api/v1/deposit", json={
     return app
 
 
-# 创建应用实例
+# Create application instance
 app = create_app()
 
 

@@ -1,5 +1,5 @@
 """
-统计接口（支持时间过滤）
+Statistics API (support time filtering)
 """
 from datetime import datetime
 from typing import Optional
@@ -10,30 +10,30 @@ from ..models import StatsResponse
 from ..services.annotation_service import get_annotation_service
 
 
-router = APIRouter(prefix="/api/v1/stats", tags=["统计接口"])
+router = APIRouter(prefix="/api/v1/stats", tags=["Statistics"])
 
 
 @router.get("")
 async def get_stats(
-    start_time: Optional[datetime] = Query(None, description="开始时间"),
-    end_time: Optional[datetime] = Query(None, description="结束时间")
+    start_time: Optional[datetime] = Query(None, description="Start time"),
+    end_time: Optional[datetime] = Query(None, description="End time")
 ) -> StatsResponse:
     """
-    获取标注统计信息（支持时间过滤）
+    Get annotation statistics (support time filtering)
     
-    查询参数：
-    - start_time: 开始时间
-    - end_time: 结束时间
+    Query parameters:
+    - start_time: Start time
+    - end_time: End time
     
-    返回：
-    - total: 总数
-    - pending: 待标注数量
-    - annotated: 已标注数量
-    - approved: 已通过数量
-    - rejected: 已拒绝数量
-    - by_priority: 按优先级分布
-    - by_oxy_type: 按组件类型分布
-    - by_status: 按状态分布
+    Returns:
+    - total: Total count
+    - pending: Pending count
+    - annotated: Annotated count
+    - approved: Approved count
+    - rejected: Rejected count
+    - by_priority: Distribution by priority
+    - by_oxy_type: Distribution by component type
+    - by_status: Distribution by status
     """
     service = get_annotation_service()
     return await service.get_stats(start_time=start_time, end_time=end_time)
@@ -42,9 +42,9 @@ async def get_stats(
 @router.get("/pending-p0")
 async def get_pending_p0():
     """
-    获取待标注的P0数据（优先处理的任务）
+    Get pending P0 data (priority tasks)
     
-    返回所有待标注的端到端数据。
+    Return all pending End-to-End data.
     """
     from ..models import DataFilter
     
@@ -59,7 +59,7 @@ async def get_pending_p0():
     
     return {
         "type": "pending_p0",
-        "description": "待标注的端到端数据（P0优先级）",
+        "description": "Pending End-to-End data (P0 priority)",
         "count": result["total"],
         "items": result["items"]
     }
@@ -68,7 +68,7 @@ async def get_pending_p0():
 @router.get("/by-oxy-type")
 async def get_stats_by_oxy_type():
     """
-    按组件类型获取统计
+    Get statistics by component type
     """
     service = get_annotation_service()
     stats = await service.get_stats()

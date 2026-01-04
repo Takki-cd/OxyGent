@@ -1,7 +1,7 @@
 """
-ES服务层 - 复用Oxygent的ES客户端
+ES Service Layer - Reuse Oxygent's ES Client
 
-简化版：按group_id/trace_id聚合，不再有层级关系
+Simplified: Aggregate by group_id/trace_id, no hierarchical relationships
 """
 import logging
 from typing import Any, Dict, List, Optional
@@ -10,7 +10,7 @@ from datetime import datetime
 from ..config import get_app_config, AppConfig
 from ..models import QAData, DataFilter, DataStatus
 
-# 复用Oxygent的ES客户端
+# Reuse Oxygent's ES Client
 from oxygent.db_factory import DBFactory
 from oxygent.databases.db_es import LocalEs, JesEs
 
@@ -19,28 +19,28 @@ logger = logging.getLogger(__name__)
 
 
 class ESService:
-    """ES服务类 - 简化版
+    """ES Service Class - Simplified
     
-    核心变更：
-    - 删除parent_qa_id、depth、is_root字段
-    - 恢复caller/callee字段
-    - 新增source_request_id、data_type字段
-    - 支持按group_id/trace_id聚合查询
+    Core Changes:
+    - Delete parent_qa_id, depth, is_root fields
+    - Restore caller/callee fields
+    - Add source_request_id, data_type fields
+    - Support aggregate query by group_id/trace_id
     """
     
     def __init__(self, config: AppConfig = None):
         self.config = config or get_app_config()
         self.index_prefix = self.config.es.index_prefix
-        self.index_name = f"{self.index_prefix}_qa_data"  # 简化为qa_data
+        self.index_name = f"{self.index_prefix}_qa_data"  # Simplified to qa_data
         
-        # 复用Oxygent的ES客户端
+        # Reuse Oxygent's ES Client
         self.es_client = self._get_es_client()
         
-        # 缓存
+        # Cache
         self._hash_cache: set = set()
     
     def _get_es_client(self):
-        """通过db_factory获取Oxygent的ES客户端（复用）"""
+        """Get Oxygent's ES Client through db_factory (reuse)"""
         if self.config.es.user and self.config.es.password:
             return DBFactory().get_instance(
                 JesEs,
@@ -52,58 +52,58 @@ class ESService:
             return DBFactory().get_instance(LocalEs)
     
     async def create_index(self):
-        """创建索引"""
+        """Create index"""
         exists = await self.es_client.index_exists(self.index_name)
         if exists:
-            logger.info(f"索引 {self.index_name} 已存在")
+            logger.info(f"Index {self.index_name} already exists")
             return
         
         mapping = {
             "mappings": {
                 "properties": {
-                    # 唯一ID
+                    # Unique ID
                     "data_id": {"type": "keyword"},
                     
-                    # QA内容
+                    # QA Content
                     "question": {"type": "text"},
                     "answer": {"type": "text"},
                     "data_hash": {"type": "keyword"},
                     
-                    # 来源追溯（三大核心字段）
+                    # Source Tracing (Three Core Fields)
                     "source_trace_id": {"type": "keyword"},
                     "source_request_id": {"type": "keyword"},
                     "source_group_id": {"type": "keyword"},
                     
-                    # 调用链信息（caller/callee）
+                    # Call Chain Information (caller/callee)
                     "caller": {"type": "keyword"},
                     "callee": {"type": "keyword"},
-                    "caller_type": {"type": "keyword"},  # 预占：调用者类型
-                    "callee_type": {"type": "keyword"},  # 预占：被调用者类型
+                    "caller_type": {"type": "keyword"},  # Reserved: Caller type
+                    "callee_type": {"type": "keyword"},  # Reserved: Callee type
                     
-                    # 数据类型
+                    # Data Type
                     "data_type": {"type": "keyword"},
                     
-                    # 优先级（端到端=0，子节点>0）
+                    # Priority (End-to-End=0, Child nodes>0)
                     "priority": {"type": "integer"},
                     
-                    # 分类与标签
+                    # Category & Tags
                     "category": {"type": "keyword"},
                     "tags": {"type": "keyword"},
                     
-                    # 状态
+                    # Status
                     "status": {"type": "keyword"},
                     
-                    # 拒绝原因
+                    # Reject Reason
                     "reject_reason": {"type": "text"},
                     
-                    # 标注结果
+                    # Annotation Result
                     "annotation": {"type": "object", "enabled": True},
                     "scores": {"type": "object", "enabled": True},
                     
-                    # 批次信息
+                    # Batch Information
                     "batch_id": {"type": "keyword"},
                     
-                    # 时间戳
+                    # Timestamp
                     "created_at": {
                         "format": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
                         "type": "date"
@@ -113,7 +113,7 @@ class ESService:
                         "type": "date"
                     },
                     
-                    # 额外数据
+                    # Extra Data
                     "extra": {"type": "object", "enabled": True},
                 }
             },
@@ -124,10 +124,10 @@ class ESService:
         }
         
         await self.es_client.create_index(self.index_name, mapping)
-        logger.info(f"索引 {self.index_name} 创建成功")
+        logger.info(f"Index {self.index_name} created successfully")
     
     async def index_data(self, data: QAData) -> str:
-        """索引单条数据"""
+        """Index single data"""
         doc = data.to_es_doc()
         await self.es_client.index(
             self.index_name,
@@ -137,7 +137,7 @@ class ESService:
         return data.data_id
     
     async def bulk_index_data(self, data_list: List[QAData]) -> tuple:
-        """批量索引"""
+        """Bulk index"""
         if not data_list:
             return 0, []
         
@@ -152,7 +152,7 @@ class ESService:
                     success_count += 1
                 except Exception as e:
                     failed.append({"_id": data.data_id, "error": str(e)})
-            logger.info(f"批量索引成功: {success_count}, 失败: {len(failed)}")
+            logger.info(f"Bulk index success: {success_count}, failed: {len(failed)}")
             return success_count, failed
         else:
             actions = []
@@ -171,11 +171,11 @@ class ESService:
                 raise_on_exception=False
             )
             
-            logger.info(f"批量索引成功: {success}, 失败: {len(failed) if isinstance(failed, list) else 0}")
+            logger.info(f"Bulk index success: {success}, failed: {len(failed) if isinstance(failed, list) else 0}")
             return success, failed or []
     
     async def get_data_by_id(self, data_id: str) -> Optional[Dict[str, Any]]:
-        """根据ID获取数据"""
+        """Get data by ID"""
         try:
             search_body = {
                 "query": {"term": {"_id": data_id}},
@@ -187,11 +187,11 @@ class ESService:
                 return hits[0].get("_source")
             return None
         except Exception as e:
-            logger.error(f"获取数据失败: {e}")
+            logger.error(f"Failed to get data: {e}")
             return None
     
     async def update_data(self, data_id: str, update_data: Dict[str, Any]) -> bool:
-        """更新数据"""
+        """Update data"""
         try:
             update_data["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             await self.es_client.update(
@@ -201,7 +201,7 @@ class ESService:
             )
             return True
         except Exception as e:
-            logger.error(f"更新数据失败: {e}")
+            logger.error(f"Failed to update data: {e}")
             return False
     
     async def search_data(
@@ -210,43 +210,43 @@ class ESService:
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
-        """搜索数据"""
+        """Search data"""
         must_clauses = []
         filter_clauses = []
 
-        # 按caller过滤（使用match查询支持模糊匹配，LocalEs已支持）
+        # Filter by caller (use match query for fuzzy matching, LocalEs already supports)
         if filter_params.caller and filter_params.caller.strip():
             must_clauses.append({"match": {"caller": filter_params.caller.strip()}})
 
-        # 按callee过滤（使用match查询支持模糊匹配）
+        # Filter by callee (use match query for fuzzy matching)
         if filter_params.callee and filter_params.callee.strip():
             must_clauses.append({"match": {"callee": filter_params.callee.strip()}})
 
-        # 按data_type过滤（精确匹配）
+        # Filter by data_type (exact match)
         if filter_params.data_type and filter_params.data_type.strip():
             must_clauses.append({"term": {"data_type": filter_params.data_type.strip()}})
 
-        # 按状态过滤（精确匹配）
+        # Filter by status (exact match)
         if filter_params.status and filter_params.status.strip():
             must_clauses.append({"term": {"status": filter_params.status.strip()}})
 
-        # 按优先级过滤（精确匹配）
+        # Filter by priority (exact match)
         if filter_params.priority is not None:
             must_clauses.append({"term": {"priority": filter_params.priority}})
 
-        # 按group_id过滤（精确匹配）
+        # Filter by group_id (exact match)
         if filter_params.group_id and filter_params.group_id.strip():
             must_clauses.append({"term": {"source_group_id": filter_params.group_id.strip()}})
 
-        # 按trace_id过滤（精确匹配）
+        # Filter by trace_id (exact match)
         if filter_params.trace_id and filter_params.trace_id.strip():
             must_clauses.append({"term": {"source_trace_id": filter_params.trace_id.strip()}})
 
-        # 按request_id精确匹配
+        # Exact match by request_id
         if filter_params.request_id and filter_params.request_id.strip():
             must_clauses.append({"term": {"source_request_id": filter_params.request_id.strip()}})
 
-        # 时间范围
+        # Time range
         if filter_params.start_time or filter_params.end_time:
             time_range = {}
             if filter_params.start_time:
@@ -255,14 +255,14 @@ class ESService:
                 time_range["lte"] = filter_params.end_time.strftime("%Y-%m-%d %H:%M:%S.%f")
             filter_clauses.append({"range": {"created_at": time_range}})
 
-        # 只显示P0（端到端）
+        # Only show P0 (End-to-End)
         if filter_params.show_p0_only:
             must_clauses.append({"term": {"priority": 0}})
 
-        # 全文搜索（使用match查询，LocalEs支持）
+        # Full-text search (use match query, LocalEs supports)
         if filter_params.search_text and filter_params.search_text.strip():
             search_term = filter_params.search_text.strip()
-            # 分别匹配 question 和 answer，仿照 caller/callee 的简单 match 查询方式
+            # Match question and answer separately, following the simple match query approach of caller/callee
             must_clauses.append({"match": {"question": search_term}})
             # must_clauses.append({"match": {"answer": search_term}})
 
@@ -312,7 +312,7 @@ class ESService:
         }
     
     async def get_by_trace_id(self, trace_id: str) -> List[Dict[str, Any]]:
-        """根据trace_id获取所有关联数据（按trace聚合）"""
+        """Get all related data by trace_id (aggregate by trace)"""
         try:
             search_body = {
                 "query": {
@@ -331,11 +331,11 @@ class ESService:
             
             return items
         except Exception as e:
-            logger.error(f"查询trace数据失败: {e}")
+            logger.error(f"Failed to query trace data: {e}")
             return []
     
     async def get_by_group_id(self, group_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """根据group_id获取所有关联数据（按group聚合）"""
+        """Get all related data by group_id (aggregate by group)"""
         try:
             search_body = {
                 "query": {
@@ -354,11 +354,11 @@ class ESService:
             
             return items
         except Exception as e:
-            logger.error(f"查询group数据失败: {e}")
+            logger.error(f"Failed to query group data: {e}")
             return []
     
     async def get_grouped_summary(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
-        """获取分组汇总（按group_id聚合）"""
+        """Get grouped summary (aggregate by group_id)"""
         try:
             search_body = {
                 "query": {"match_all": {}},
@@ -417,7 +417,7 @@ class ESService:
                 "total_pages": (total + page_size - 1) // page_size
             }
         except Exception as e:
-            logger.error(f"获取分组汇总失败: {e}")
+            logger.error(f"Failed to get grouped summary: {e}")
             return {
                 "groups": [],
                 "total": 0,
@@ -431,9 +431,9 @@ class ESService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
-        """获取统计信息（支持时间过滤）"""
+        """Get statistics (support time filtering)"""
         try:
-            # 构建时间范围查询
+            # Build time range query
             must_clauses = []
             filter_clauses = []
             
@@ -445,7 +445,7 @@ class ESService:
                     time_range["lte"] = end_time.strftime("%Y-%m-%d %H:%M:%S.%f")
                 filter_clauses.append({"range": {"created_at": time_range}})
             
-            # 构建查询条件
+            # Build query conditions
             if filter_clauses:
                 query = {"bool": {"filter": filter_clauses}}
             else:
@@ -483,7 +483,7 @@ class ESService:
                 "rejected": by_status.get(DataStatus.REJECTED.value, 0)
             }
         except Exception as e:
-            logger.error(f"获取统计失败: {e}")
+            logger.error(f"Failed to get statistics: {e}")
             return {
                 "total": 0,
                 "by_status": {},
@@ -496,10 +496,10 @@ class ESService:
                 "rejected": 0
             }
     
-    # ========== 去重相关 ==========
+    # ========== Deduplication Related ==========
     
     def _is_duplicate_in_memory(self, data_hash: str) -> bool:
-        """内存缓存去重"""
+        """Memory cache deduplication"""
         if data_hash in self._hash_cache:
             return True
         self._hash_cache.add(data_hash)
@@ -508,7 +508,7 @@ class ESService:
         return False
     
     async def _check_hash_exists_in_es(self, data_hash: str) -> bool:
-        """ES中去重检查"""
+        """Deduplication check in ES"""
         try:
             search_body = {
                 "query": {"term": {"data_hash": data_hash}},
@@ -520,7 +520,7 @@ class ESService:
             return False
     
     async def is_duplicate(self, data_hash: str) -> bool:
-        """完整去重检查：内存 + ES"""
+        """Complete deduplication check: Memory + ES"""
         if self._is_duplicate_in_memory(data_hash):
             return True
         if await self._check_hash_exists_in_es(data_hash):
@@ -529,12 +529,12 @@ class ESService:
         return False
 
 
-# 全局ES服务实例
+# Global ES Service Instance
 _es_service: Optional[ESService] = None
 
 
 def get_es_service() -> ESService:
-    """获取ES服务（单例）"""
+    """Get ES service (singleton)"""
     global _es_service
     if _es_service is None:
         config = get_app_config()
@@ -543,13 +543,13 @@ def get_es_service() -> ESService:
 
 
 async def init_es_service() -> ESService:
-    """初始化ES服务"""
+    """Initialize ES service"""
     service = get_es_service()
     await service.create_index()
     return service
 
 
 def reset_es_service():
-    """重置ES服务（用于测试）"""
+    """Reset ES service (for testing)"""
     global _es_service
     _es_service = None

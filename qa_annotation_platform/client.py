@@ -1,28 +1,28 @@
 """
-QA标注平台客户端（简化版）
+QA Annotation Platform Client (Simplified)
 
-供Oxygent Agent调用
+For Oxygent Agent to call
 """
 import asyncio
 from typing import Any, Dict, List, Optional
 
 
 class QAClient:
-    """QA标注平台客户端（简化版）"""
+    """QA Annotation Platform Client (Simplified)"""
     
     def __init__(self, base_url: str = "http://localhost:8001", timeout: int = 30):
         """
-        初始化客户端
+        Initialize client
         
         Args:
-            base_url: QA标注平台API地址
-            timeout: 请求超时时间（秒）
+            base_url: QA Annotation Platform API address
+            timeout: Request timeout (seconds)
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
     
     async def _request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
-        """发起HTTP请求"""
+        """Send HTTP request"""
         import aiohttp
         
         url = f"{self.base_url}{endpoint}"
@@ -52,24 +52,24 @@ class QAClient:
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入数据（核心方法）
+        Deposit data (Core method)
         
         Args:
-            source_trace_id: 来自OxyRequest.current_trace_id（必填）
-            source_request_id: 来自OxyRequest.request_id（必填）
-            question: 问题/输入（必填）
-            answer: 答案/输出（可选）
-            source_group_id: 来自OxyRequest.group_id（可选，用于聚合）
-            caller: 调用者（必填，如user/agent名称）
-            callee: 被调用者（必填，如agent/tool/llm名称）
-            data_type: 数据类型（可选，用于标注时区分来源）
-            priority: 优先级（可选，默认0，P0=端到端）
-            category: 分类（可选）
-            tags: 标签列表（可选）
-            extra: 额外数据（可选）
+            source_trace_id: From OxyRequest.current_trace_id (required)
+            source_request_id: From OxyRequest.request_id (required)
+            question: Question/Input (required)
+            answer: Answer/Output (optional)
+            source_group_id: From OxyRequest.group_id (optional, for aggregation)
+            caller: Caller (required, e.g., user/agent name)
+            callee: Callee (required, e.g., agent/tool/llm name)
+            data_type: Data type (optional, used to distinguish source during annotation)
+            priority: Priority (optional, default 0, P0=End-to-End)
+            category: Category (optional)
+            tags: Tags list (optional)
+            extra: Extra data (optional)
         
         Returns:
-            API响应，包含data_id
+            API response, containing data_id
         """
         payload = {
             "source_trace_id": source_trace_id,
@@ -105,9 +105,9 @@ class QAClient:
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入端到端数据（P0优先级）
+        Deposit End-to-End data (P0 priority)
         
-        快捷方法，等效于 priority=0
+        Convenience method, equivalent to priority=0
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
@@ -135,7 +135,7 @@ class QAClient:
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入Agent调用数据（P1）
+        Deposit Agent call data (P1)
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
@@ -163,7 +163,7 @@ class QAClient:
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入LLM调用数据（P2）
+        Deposit LLM call data (P2)
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
@@ -191,7 +191,7 @@ class QAClient:
         extra: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        注入Tool调用数据（P3）
+        Deposit Tool call data (P3)
         """
         return await self.deposit(
             source_trace_id=source_trace_id,
@@ -207,7 +207,7 @@ class QAClient:
         )
     
     async def batch_deposit(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """批量注入数据"""
+        """Batch deposit data"""
         return await self._request("POST", "/api/v1/deposit/batch", {"items": items})
     
     async def get_data_list(
@@ -223,7 +223,7 @@ class QAClient:
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
-        """获取数据列表"""
+        """Get data list"""
         params = {
             "page": page,
             "page_size": page_size
@@ -249,19 +249,19 @@ class QAClient:
         return await self._request("GET", f"/api/v1/data{query}")
     
     async def get_data_by_trace(self, trace_id: str) -> Dict[str, Any]:
-        """根据trace_id获取所有关联数据"""
+        """Get all related data by trace_id"""
         return await self._request("GET", f"/api/v1/data/trace/{trace_id}")
     
     async def get_data_by_group(self, group_id: str, limit: int = 100) -> Dict[str, Any]:
-        """根据group_id获取所有关联数据"""
+        """Get all related data by group_id"""
         return await self._request("GET", f"/api/v1/data/group/{group_id}?limit={limit}")
     
     async def get_groups_summary(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
-        """获取分组汇总"""
+        """Get grouped summary"""
         return await self._request("GET", f"/api/v1/data/groups/summary?page={page}&page_size={page_size}")
     
     async def get_data(self, data_id: str) -> Dict[str, Any]:
-        """获取数据详情"""
+        """Get data details"""
         return await self._request("GET", f"/api/v1/data/{data_id}")
     
     async def annotate(
@@ -271,8 +271,8 @@ class QAClient:
         scores: Optional[Dict[str, float]] = None,
         status: Optional[str] = None
     ) -> Dict[str, Any]:
-        """更新标注结果"""
-        payload = {"annotation": annotation}
+        """Update annotation result"""
+        payload = {" ntation": annotation}
         if scores:
             payload["scores"] = scores
         if status:
@@ -281,30 +281,30 @@ class QAClient:
         return await self._request("PUT", f"/api/v1/data/{data_id}/annotate", payload)
     
     async def approve(self, data_id: str) -> Dict[str, Any]:
-        """审核通过"""
+        """Approve review"""
         return await self._request("POST", f"/api/v1/data/{data_id}/approve", {})
     
     async def reject(self, data_id: str) -> Dict[str, Any]:
-        """审核拒绝"""
+        """Reject review"""
         return await self._request("POST", f"/api/v1/data/{data_id}/reject", {})
     
     async def get_stats(self) -> Dict[str, Any]:
-        """获取统计信息"""
+        """Get statistics"""
         return await self._request("GET", "/api/v1/stats")
     
     async def get_pending_p0(self) -> Dict[str, Any]:
-        """获取待标注的P0数据"""
+        """Get pending P0 data"""
         return await self._request("GET", "/api/v1/stats/pending-p0")
 
 
 class QADepositor:
-    """同步版QA注入器（兼容非异步代码）"""
+    """Synchronous QA Depositor (compatible with non-async code)"""
     
     def __init__(self, base_url: str = "http://localhost:8001"):
         self.client = QAClient(base_url)
     
     def deposit(self, **kwargs) -> Dict[str, Any]:
-        """同步注入数据"""
+        """Synchronous deposit data"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -312,7 +312,7 @@ class QADepositor:
             return future.result()
     
     def deposit_e2e(self, **kwargs) -> Dict[str, Any]:
-        """同步注入端到端数据"""
+        """Synchronous deposit End-to-End data"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -320,7 +320,7 @@ class QADepositor:
             return future.result()
     
     def deposit_agent(self, **kwargs) -> Dict[str, Any]:
-        """同步注入Agent数据"""
+        """Synchronous deposit Agent data"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -328,7 +328,7 @@ class QADepositor:
             return future.result()
     
     def deposit_llm(self, **kwargs) -> Dict[str, Any]:
-        """同步注入LLM数据"""
+        """Synchronous deposit LLM data"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -336,7 +336,7 @@ class QADepositor:
             return future.result()
     
     def deposit_tool(self, **kwargs) -> Dict[str, Any]:
-        """同步注入Tool数据"""
+        """Synchronous deposit Tool data"""
         import concurrent.futures
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -345,10 +345,10 @@ class QADepositor:
 
 
 def create_qa_client(base_url: str = "http://localhost:8001") -> QAClient:
-    """创建QA客户端"""
+    """Create QA client"""
     return QAClient(base_url)
 
 
 def create_qa_depositor(base_url: str = "http://localhost:8001") -> QADepositor:
-    """创建同步QA注入器"""
+    """Create synchronous QA depositor"""
     return QADepositor(base_url)
