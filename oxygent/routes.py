@@ -1120,13 +1120,6 @@ async def get_history_with_ratings(
     search_term: str = ""
 ):
     """Optimized version: Get conversation history with ratings.
-
-    Performance improvements:
-    1. Uses Elasticsearch composite aggregation for efficient grouping
-    2. Only loads rating data for current page (not all records)
-    3. Optimized field retrieval to minimize data transfer
-    4. Uses top_hits aggregation to get trace_ids per group
-
     Args:
         page: Page number (starts from 1)
         page_size: Number of items per page
