@@ -35,6 +35,9 @@ class DataStatus(str, Enum):
     ANNOTATED = "annotated"   # Annotated
     APPROVED = "approved"     # Approved
     REJECTED = "rejected"     # Rejected
+    # Knowledge Base Ingestion Status
+    KB_INGESTED = "kb_ingested"  # Successfully Ingested to Knowledge Base
+    KB_FAILED = "kb_failed"   # Knowledge Base Ingestion Failed
 
 
 # ==================== Request Models ====================
@@ -186,6 +189,12 @@ class QAData(BaseModel):
     annotation: Dict[str, Any] = Field(default_factory=dict)
     scores: Dict[str, Any] = Field(default_factory=dict)
     
+    # Knowledge Base Ingestion Information
+    kb_status: str = ""  # Knowledge base ingestion status
+    kb_ingested_at: Optional[datetime] = None  # Ingestion timestamp
+    kb_error_message: str = ""  # Error message if ingestion failed
+    kb_extra: Dict[str, Any] = Field(default_factory=dict)  # Additional KB metadata
+    
     # Batch Information
     batch_id: str = ""
     
@@ -203,8 +212,12 @@ class QAData(BaseModel):
         """Convert to ES document"""
         data = self.model_dump()
         # Convert datetime to string
-        data["created_at"] = self.created_at.strftime("%Y-%m-%d %H:%M:%S.%f")
-        data["updated_at"] = self.updated_at.strftime("%Y-%m-%d %H:%M:%S.%f")
+        if isinstance(data.get("created_at"), datetime):
+            data["created_at"] = self.created_at.strftime("%Y-%m-%d %H:%M:%S.%f")
+        if isinstance(data.get("updated_at"), datetime):
+            data["updated_at"] = self.updated_at.strftime("%Y-%m-%d %H:%M:%S.%f")
+        if isinstance(data.get("kb_ingested_at"), datetime):
+            data["kb_ingested_at"] = self.kb_ingested_at.strftime("%Y-%m-%d %H:%M:%S.%f")
         return data
     
     @classmethod
@@ -325,6 +338,9 @@ class StatsResponse(BaseModel):
     annotated: int
     approved: int
     rejected: int
+    # Knowledge Base Statistics
+    kb_ingested: int = 0  # Successfully ingested to KB
+    kb_failed: int = 0  # KB ingestion failed
     by_priority: Dict[str, int]
     by_caller: Dict[str, int]
     by_callee: Dict[str, int]
@@ -336,3 +352,40 @@ class AnnotationUpdate(BaseModel):
     status: Optional[str] = None
     annotation: Optional[Dict[str, Any]] = None
     scores: Optional[Dict[str, Any]] = None
+
+
+class KBIngestionRequest(BaseModel):
+    """Knowledge Base Ingestion Request - Request format for KB API"""
+    question: str = Field(..., description="Question/Input")
+    answer: str = Field(..., description="Answer/Output")
+    score: Optional[float] = Field(None, description="Quality score (0-1)")
+    caller: str = Field(..., description="Caller name")
+    callee: str = Field(..., description="Callee name")
+    remark: Optional[str] = Field(None, description="Additional remarks")
+    
+    # Optional metadata
+    source_trace_id: Optional[str] = Field(None, description="Original trace_id")
+    source_request_id: Optional[str] = Field(None, description="Original request_id")
+    data_type: Optional[str] = Field(None, description="Data type")
+    priority: Optional[int] = Field(None, description="Priority")
+    category: Optional[str] = Field(None, description="Category")
+    tags: List[str] = Field(default_factory=list, description="Tags")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "question": "What is the capital of France?",
+                "answer": "Paris is the capital of France.",
+                "score": 0.95,
+                "caller": "user",
+                "callee": "chat_agent",
+                "remark": "High quality Q&A pair"
+            }
+        }
+
+
+class KBIngestionResponse(BaseModel):
+    """Knowledge Base Ingestion Response"""
+    success: bool
+    message: str
+    kb_doc_id: Optional[str] = None  # Document ID returned by KB platform

@@ -630,6 +630,8 @@
 .detail-meta-section .qa-status.annotated { background: #D1FAE5; color: #059669; }
 .detail-meta-section .qa-status.approved { background: #10B981; color: #fff; }
 .detail-meta-section .qa-status.rejected { background: #FEE2E2; color: #DC2626; }
+.detail-meta-section .qa-status.kb_ingested { background: #C7D2FE; color: #4338CA; }
+.detail-meta-section .qa-status.kb_failed { background: #FEE2E2; color: #DC2626; }
 
 .detail-meta-section .data-type-tag {
     display: inline-block;
@@ -774,4 +776,167 @@
 
 .reject-dialog-actions .btn {
     padding: 10px 20px;
+}
+
+/* ============================================================================ */
+/* Knowledge Base Styles */
+/* ============================================================================ */
+
+.kb-section {
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    border: 1px solid #E8E8EB;
+}
+
+.kb-section .section-header {
+    background: #EDE9FE;
+    border-bottom-color: #DDD6FE;
+}
+
+.kb-section .section-icon {
+    font-size: 14px;
+}
+
+.kb-section .section-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #5B21B6;
+}
+
+.kb-actions {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.kb-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+}
+
+.kb-status-info {
+    padding: 16px;
+    background: #FAFAFA;
+    border-top: 1px solid #F0F0F5;
+}
+
+.kb-status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.kb-status-row:last-child {
+    margin-bottom: 0;
+}
+
+.kb-status-label {
+    font-size: 12px;
+    color: #666;
+    min-width: 80px;
+}
+
+.kb-status-value {
+    font-size: 12px;
+    color: #333;
+    font-family: 'SF Mono', Monaco, monospace;
+    word-break: break-all;
+}
+
+.kb-status-value.kb-queued {
+    color: #D97706;
+    font-weight: 500;
+}
+
+.kb-status-value.kb-ingested {
+    color: #059669;
+    font-weight: 500;
+}
+
+.kb-status-value.kb-failed {
+    color: #DC2626;
+    font-weight: 500;
+}
+
+.kb-status-row.kb-error {
+    background: #FEF2F2;
+    padding: 12px;
+    border-radius: 4px;
+    margin: 0;
+}
+
+.kb-status-row.kb-error .kb-status-value {
+    color: #DC2626;
+}
+
+/* KB Stats in Sidebar */
+.kb-stats-container {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #E8E8EB;
+}
+
+.kb-stat-block {
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.kb-stat-block.queued {
+    background: #FEF3C7;
+}
+
+.kb-stat-block.ingested {
+    background: #D1FAE5;
+}
+
+.kb-stat-block.failed {
+    background: #FEE2E2;
+}
+
+.kb-stat-value {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.kb-stat-block.queued .kb-stat-value {
+    color: #D97706;
+}
+
+.kb-stat-block.ingested .kb-stat-value {
+    color: #059669;
+}
+
+.kb-stat-block.failed .kb-stat-value {
+    color: #DC2626;
+}
+
+.kb-stat-label {
+    font-size: 11px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.kb-enabled-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: #D1FAE5;
+    color: #059669;
+    border-radius: 10px;
+    margin-left: 8px;
+}
+
+.kb-disabled-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: #F3F4F6;
+    color: #6B7280;
+    border-radius: 10px;
+    margin-left: 8px;
 }

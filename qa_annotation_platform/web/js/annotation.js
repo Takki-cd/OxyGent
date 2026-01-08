@@ -25,12 +25,21 @@ let state = {
         pending: 0,
         annotated: 0,
         approved: 0,
-        rejected: 0
+        rejected: 0,
+        kb_ingested: 0,
+        kb_failed: 0
     },
+    kbEnabled: false,
     selectedData: null,
     sidebarWidth: 320,
     sidebarMinWidth: 200,
     sidebarMaxWidth: 400
+};
+
+// KB Status Constants
+const KB_STATUS = {
+    INGESTED: 'kb_ingested',
+    FAILED: 'kb_failed'
 };
 
 // Agent Color Mapping
@@ -297,9 +306,21 @@ async function loadStats() {
             pending: stats.pending || 0,
             annotated: stats.annotated || 0,
             approved: stats.approved || 0,
-            rejected: stats.rejected || 0
+            rejected: stats.rejected || 0,
+            kb_ingested: stats.kb_ingested || 0,
+            kb_failed: stats.kb_failed || 0
         };
+        
+        // Load KB status
+        try {
+            const kbStatus = await apiGet('/data/kb/status');
+            state.kbEnabled = kbStatus.enabled || false;
+        } catch (e) {
+            state.kbEnabled = false;
+        }
+        
         renderStats();
+        renderKBStats();
     } catch (error) {
         console.error('Failed to fetch statistics:', error);
     }
@@ -450,6 +471,47 @@ function renderStats() {
     document.getElementById('progressAnnotated').style.width = `${annotatedPercent}%`;
     document.getElementById('progressApproved').style.width = `${approvedPercent}%`;
     document.getElementById('progressRejected').style.width = `${rejectedPercent}%`;
+    
+    // Render KB stats if enabled
+    renderKBStats();
+}
+
+function renderKBStats() {
+    // Check if KB stats elements exist, if not create them
+    let kbStatsContainer = document.getElementById('kbStatsContainer');
+    if (!kbStatsContainer) {
+        // Create KB stats container
+        const progressSection = document.querySelector('.progress-bar-container');
+        if (progressSection) {
+            kbStatsContainer = document.createElement('div');
+            kbStatsContainer.id = 'kbStatsContainer';
+            kbStatsContainer.className = 'kb-stats-container';
+            kbStatsContainer.innerHTML = `
+                <div class="progress-bar-label" style="margin-top: 12px;">
+                    <span>📚 Knowledge Base</span>
+                    ${state.kbEnabled ? '<span class="kb-enabled-badge">Enabled</span>' : '<span class="kb-disabled-badge">Not Configured</span>'}
+                </div>
+                <div class="kb-stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px;">
+                    <div class="kb-stat-block ingested">
+                        <div class="kb-stat-value" id="statKbIngested">0</div>
+                        <div class="kb-stat-label">Ingested</div>
+                    </div>
+                    <div class="kb-stat-block failed">
+                        <div class="kb-stat-value" id="statKbFailed">0</div>
+                        <div class="kb-stat-label">Failed</div>
+                    </div>
+                </div>
+            `;
+            progressSection.parentNode.insertBefore(kbStatsContainer, progressSection.nextSibling);
+        }
+    }
+    
+    // Update KB stats values
+    const kbIngestedEl = document.getElementById('statKbIngested');
+    const kbFailedEl = document.getElementById('statKbFailed');
+    
+    if (kbIngestedEl) kbIngestedEl.textContent = state.stats.kb_ingested || 0;
+    if (kbFailedEl) kbFailedEl.textContent = state.stats.kb_failed || 0;
 }
 
 function renderDataList() {
@@ -558,7 +620,9 @@ function getStatusText(status) {
         pending: 'Pending',
         annotated: 'Annotated',
         approved: 'Approved',
-        rejected: 'Rejected'
+        rejected: 'Rejected',
+        kb_ingested: 'Ingested',
+        kb_failed: 'Failed'
     };
     return statusMap[status] || status;
 }
@@ -731,6 +795,9 @@ function renderDataDetail(data) {
         
         <!-- Review Action Area - Show review buttons for annotated status -->
         ${isAnnotated ? renderReviewSection(data) : ''}
+        
+        <!-- Knowledge Base Section - Show for approved status or KB-related status -->
+        ${(data.status === 'approved' || data.status === 'kb_ingested' || data.status === 'kb_failed') ? renderKBSection(data) : ''}
     `;
 }
 
@@ -874,6 +941,24 @@ function renderAnnotationForm(data) {
 
 // Review Action Area - Show review buttons only, no annotation form
 function renderReviewSection(data) {
+    let actionsHtml = `
+        <button class="btn btn-success" onclick="approveData('${data.data_id}')">
+            ✅ Approve Annotation
+        </button>
+        <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
+            ❌ Reject Annotation
+        </button>
+    `;
+    
+    // Add KB actions if enabled and data is approved
+    if (state.kbEnabled && data.status === 'approved') {
+        actionsHtml += `
+            <button class="btn btn-primary" onclick="ingestToKB('${data.data_id}')" style="margin-left: 8px;">
+                📤 Approve & Ingest to KB
+            </button>
+        `;
+    }
+    
     return `
         <div class="review-section">
             <div class="review-header">
@@ -881,12 +966,7 @@ function renderReviewSection(data) {
                 <span class="review-title">Annotation Review</span>
             </div>
             <div class="review-actions">
-                <button class="btn btn-success" onclick="approveData('${data.data_id}')">
-                    ✅ Approve Annotation
-                </button>
-                <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
-                    ❌ Reject Annotation
-                </button>
+                ${actionsHtml}
             </div>
         </div>
     `;
@@ -1018,46 +1098,59 @@ async function confirmReject(dataId) {
 }
 
 // ============================================================================
-// Drawer Control
+// Knowledge Base Ingestion Operations
 // ============================================================================
 
-function openDrawer() {
-    document.getElementById('drawerOverlay').classList.add('show');
-    document.getElementById('detailDrawer').classList.add('show');
-}
-
-function closeDrawer() {
-    document.getElementById('drawerOverlay').classList.remove('show');
-    document.getElementById('detailDrawer').classList.remove('show');
-    state.selectedData = null;
-    renderDataList();
-}
-
-// ============================================================================
-// Sidebar Expand/Collapse
-// ============================================================================
-
-function toggleSection(sectionId) {
-    const header = document.querySelector(`.sidebar-section-header:has(+ #${sectionId}Content)`);
-    const content = document.getElementById(`${sectionId}Content`);
-    const icon = document.getElementById(`${sectionId}ToggleIcon`);
-    
-    if (header && content) {
-        header.classList.toggle('section-collapsed');
-        content.classList.toggle('collapsed');
+async function ingestToKB(dataId) {
+    if (!state.kbEnabled) {
+        showToast('Knowledge Base is not configured. Please configure QA_KB_ENDPOINT and QA_KB_ID.', 'warning');
+        return;
     }
     
-    if (icon) {
-        icon.textContent = header?.classList.contains('section-collapsed') ? '▶' : '▼';
+    try {
+        showToast('Ingesting to Knowledge Base...', 'info');
+        const result = await apiPost(`/data/${dataId}/ingest-kb`, {});
+        
+        if (result.success) {
+            showToast('Successfully ingested to Knowledge Base', 'success');
+        } else {
+            showToast('Failed to ingest: ' + result.message, 'error');
+        }
+        
+        closeDrawer();
+        loadData(state.currentPage);
+        loadStats();
+    } catch (error) {
+        console.error('KB ingestion failed:', error);
+        showToast('KB ingestion failed: ' + error.message, 'error');
     }
 }
+
+// Export Global Functions
+window.changePage = changePage;
+window.applyFilters = applyFilters;
+window.resetFilters = resetFilters;
+window.viewData = viewData;
+window.submitAnnotation = submitAnnotation;
+window.approveData = approveData;
+window.rejectData = rejectData;
+window.closeDrawer = closeDrawer;
+window.toggleSection = toggleSection;
+window.doSearch = doSearch;
+window.handleFilterInput = handleFilterInput;
+window.handleSearchClick = handleSearchClick;
+window.closeRejectDialog = closeRejectDialog;
+window.confirmReject = confirmReject;
+// Knowledge Base Functions
+window.ingestToKB = ingestToKB;
+
 
 // ============================================================================
 // Initialization
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('QA Annotation Platform initialized (New Version - Legacy Style)');
+    console.log('QA Annotation Platform initialized');
 
     initSidebarResize();
     initTableColumnResize();
@@ -1084,19 +1177,3 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Initialization load failed:', error);
     });
 });
-
-// Export Global Functions
-window.changePage = changePage;
-window.applyFilters = applyFilters;
-window.resetFilters = resetFilters;
-window.viewData = viewData;
-window.submitAnnotation = submitAnnotation;
-window.approveData = approveData;
-window.rejectData = rejectData;
-window.closeDrawer = closeDrawer;
-window.toggleSection = toggleSection;
-window.doSearch = doSearch;
-window.handleFilterInput = handleFilterInput;
-window.handleSearchClick = handleSearchClick;
-window.closeRejectDialog = closeRejectDialog;
-window.confirmReject = confirmReject;

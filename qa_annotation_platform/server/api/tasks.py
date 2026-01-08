@@ -212,3 +212,89 @@ async def reject_data(data_id: str, request: RejectRequest):
         raise HTTPException(status_code=500, detail=result["message"])
     
     return result
+
+
+# ==================== Knowledge Base Ingestion Endpoints ====================
+
+class IngestKBRequest(BaseModel):
+    """Knowledge Base Ingestion Request"""
+    remark: Optional[str] = None
+
+
+class BatchIngestKBRequest(BaseModel):
+    """Batch Knowledge Base Ingestion Request"""
+    data_ids: List[str]
+    skip_on_error: bool = True
+
+
+@router.post("/{data_id}/ingest-kb")
+async def ingest_to_kb(data_id: str, request: IngestKBRequest = None):
+    """
+    Ingest data to Knowledge Base
+    
+    Trigger KB ingestion for a single approved data item.
+    """
+    service = get_annotation_service()
+    result = await service.ingest_to_kb(data_id, request.remark if request else None)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return result
+
+
+@router.post("/batch/ingest-kb")
+async def batch_ingest_to_kb(request: BatchIngestKBRequest):
+    """
+    Batch ingest data to Knowledge Base
+    
+    Trigger KB ingestion for multiple data items at once.
+    Only approved data (status=approved) can be ingested.
+    """
+    service = get_annotation_service()
+    result = await service.ingest_batch_to_kb(
+        request.data_ids, 
+        skip_on_error=request.skip_on_error
+    )
+    
+    if not result.get("success", False) and result.get("failed_count", 0) > 0:
+        # Return partial success
+        return result
+    
+    return result
+
+
+# ==================== Knowledge Base Status Endpoints ====================
+
+@router.get("/kb/status")
+async def get_kb_status():
+    """
+    Get Knowledge Base ingestion status and statistics
+    """
+    from ..config import get_app_config
+    from ..models import DataStatus
+    
+    config = get_app_config()
+    
+    # Check if KB is configured
+    kb_enabled = (
+        config.kb.enabled and 
+        bool(config.kb.endpoint) and 
+        bool(config.kb.kb_id)
+    )
+    
+    service = get_annotation_service()
+    stats = await service.get_stats()
+    
+    return {
+        "enabled": kb_enabled,
+        "config": {
+            "endpoint": config.kb.endpoint,
+            "kb_id": config.kb.kb_id,
+            "auto_ingest": config.kb.auto_ingest
+        },
+        "statistics": {
+            "kb_ingested": stats.kb_ingested,
+            "kb_failed": stats.kb_failed
+        }
+    }

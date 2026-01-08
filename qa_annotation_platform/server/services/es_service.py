@@ -1,9 +1,10 @@
 """
 ES Service Layer - Reuse Oxygent's ES Client
 
-Simplified: Aggregate by group_id/trace_id, no hierarchical relationships
+Supports both local ES and remote ES (JesEs) implementations
 """
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
@@ -13,25 +14,26 @@ from ..models import QAData, DataFilter, DataStatus
 # Reuse Oxygent's ES Client
 from oxygent.db_factory import DBFactory
 from oxygent.databases.db_es import LocalEs, JesEs
+from oxygent.config import Config
 
 
 logger = logging.getLogger(__name__)
 
 
 class ESService:
-    """ES Service Class - Simplified
+    """ES Service Class
     
-    Core Changes:
-    - Delete parent_qa_id, depth, is_root fields
-    - Restore caller/callee fields
-    - Add source_request_id, data_type fields
-    - Support aggregate query by group_id/trace_id
+    Reuses Oxygent's ES client implementation:
+    - LocalEs: For local file-based storage
+    - JesEs: For remote Elasticsearch
+    
+    Data storage path can be configured via config.json
     """
     
     def __init__(self, config: AppConfig = None):
         self.config = config or get_app_config()
         self.index_prefix = self.config.es.index_prefix
-        self.index_name = f"{self.index_prefix}_qa_data"  # Simplified to qa_data
+        self.index_name = f"{self.index_prefix}_qa_data"
         
         # Reuse Oxygent's ES Client
         self.es_client = self._get_es_client()
@@ -42,6 +44,7 @@ class ESService:
     def _get_es_client(self):
         """Get Oxygent's ES Client through db_factory (reuse)"""
         if self.config.es.user and self.config.es.password:
+            # Remote ES with authentication
             return DBFactory().get_instance(
                 JesEs,
                 self.config.es.hosts,
@@ -49,7 +52,21 @@ class ESService:
                 self.config.es.password
             )
         else:
+            # Local ES - set custom data directory first
+            self._setup_local_es_dir()
             return DBFactory().get_instance(LocalEs)
+    
+    def _setup_local_es_dir(self):
+        """Setup local ES data directory from config"""
+        if hasattr(self.config.es, 'local_data_dir') and self.config.es.local_data_dir:
+            es_dir = self.config.es.local_data_dir
+            if not os.path.isabs(es_dir):
+                # Convert relative path to absolute path based on annotation platform directory
+                platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                es_dir = os.path.join(platform_root, es_dir)
+            # Set oxygent's cache save dir before creating LocalEs
+            Config.set_cache_save_dir(es_dir)
+            logger.info(f"Local ES data directory set to: {es_dir}")
     
     async def create_index(self):
         """Create index"""
@@ -99,6 +116,15 @@ class ESService:
                     # Annotation Result
                     "annotation": {"type": "object", "enabled": True},
                     "scores": {"type": "object", "enabled": True},
+                    
+                    # Knowledge Base Ingestion Information
+                    "kb_status": {"type": "keyword"},  # KB ingestion status
+                    "kb_ingested_at": {
+                        "format": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
+                        "type": "date"
+                    },
+                    "kb_error_message": {"type": "text"},
+                    "kb_extra": {"type": "object", "enabled": True},
                     
                     # Batch Information
                     "batch_id": {"type": "keyword"},
@@ -480,7 +506,10 @@ class ESService:
                 "pending": by_status.get(DataStatus.PENDING.value, 0),
                 "annotated": by_status.get(DataStatus.ANNOTATED.value, 0),
                 "approved": by_status.get(DataStatus.APPROVED.value, 0),
-                "rejected": by_status.get(DataStatus.REJECTED.value, 0)
+                "rejected": by_status.get(DataStatus.REJECTED.value, 0),
+                # KB Statistics
+                "kb_ingested": by_status.get(DataStatus.KB_INGESTED.value, 0),
+                "kb_failed": by_status.get(DataStatus.KB_FAILED.value, 0)
             }
         except Exception as e:
             logger.error(f"Failed to get statistics: {e}")
@@ -493,7 +522,9 @@ class ESService:
                 "pending": 0,
                 "annotated": 0,
                 "approved": 0,
-                "rejected": 0
+                "rejected": 0,
+                "kb_ingested": 0,
+                "kb_failed": 0
             }
     
     # ========== Deduplication Related ==========

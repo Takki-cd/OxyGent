@@ -470,6 +470,8 @@ body {
 .qa-table .qa-status.annotated { background: #D1FAE5; color: #059669; }
 .qa-table .qa-status.approved { background: #10B981; color: #fff; }
 .qa-table .qa-status.rejected { background: #FEE2E2; color: #DC2626; }
+.qa-table .qa-status.kb_ingested { background: #C7D2FE; color: #4338CA; }
+.qa-table .qa-status.kb_failed { background: #FEE2E2; color: #DC2626; }
 
 .qa-table .qa-callee {
     font-size: 11px;

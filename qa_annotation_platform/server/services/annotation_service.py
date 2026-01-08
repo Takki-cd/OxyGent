@@ -18,6 +18,7 @@ from ..models import (
     StatsResponse
 )
 from .es_service import get_es_service, ESService
+from .kb_service import get_kb_service, KBService
 
 
 logger = logging.getLogger(__name__)
@@ -191,13 +192,38 @@ class AnnotationService:
         stats = await self.es_service.get_stats(start_time=start_time, end_time=end_time)
         return StatsResponse(**stats)
     
-    async def approve(self, data_id: str) -> Dict[str, Any]:
-        """Approve review"""
+    async def approve(self, data_id: str, auto_ingest: bool = False) -> Dict[str, Any]:
+        """
+        Approve review
+        
+        Args:
+            data_id: Data ID to approve
+            auto_ingest: Whether to automatically ingest to KB after approval
+        """
+        from ..config import get_app_config
+        
         success = await self.es_service.update_data(
             data_id, 
             {"status": DataStatus.APPROVED.value}
         )
-        return {"success": success, "message": "Approved" if success else "Failed"}
+        
+        if not success:
+            return {"success": False, "message": "Failed to approve"}
+        
+        # Check if auto-ingest is enabled (config or parameter)
+        config = get_app_config()
+        should_auto_ingest = auto_ingest or config.kb.auto_ingest
+        
+        if should_auto_ingest and config.kb.enabled:
+            # Auto-ingest to KB
+            ingest_result = await self.ingest_to_kb(data_id)
+            return {
+                "success": True, 
+                "message": "Approved and ingested to Knowledge Base",
+                "kb_ingested": ingest_result.get("success", False)
+            }
+        
+        return {"success": True, "message": "Approved"}
     
     async def reject(self, data_id: str, reject_reason: str = None) -> Dict[str, Any]:
         """Reject review"""
@@ -207,6 +233,164 @@ class AnnotationService:
         }
         success = await self.es_service.update_data(data_id, update_data)
         return {"success": success, "message": "Rejected" if success else "Failed"}
+    
+    # ==================== Knowledge Base Ingestion ====================
+    
+    async def ingest_to_kb(self, data_id: str, remark: str = None) -> Dict[str, Any]:
+        """
+        Ingest data to Knowledge Base
+        
+        Args:
+            data_id: Data ID to ingest
+            remark: Optional remark for the KB entry
+        
+        Returns:
+            Dict with success status and message
+        """
+        # Get data details
+        data = await self.es_service.get_data_by_id(data_id)
+        if not data:
+            return {"success": False, "message": "Data not found"}
+        
+        # Check status - only approved data can be ingested
+        if data.get("status") not in [DataStatus.APPROVED.value, DataStatus.KB_QUEUED.value, DataStatus.KB_FAILED.value]:
+            return {
+                "success": False, 
+                "message": f"Cannot ingest data with status '{data.get('status')}'. Only approved data can be ingested."
+            }
+        
+        # Check if already ingested
+        if data.get("kb_status") == DataStatus.KB_INGESTED.value:
+            return {"success": False, "message": "Data has already been ingested to KB"}
+        
+        # Update status to KB_QUEUED
+        await self.es_service.update_data(data_id, {
+            "status": DataStatus.KB_QUEUED.value,
+            "kb_status": DataStatus.KB_QUEUED.value
+        })
+        
+        # Get KB service
+        kb_service = get_kb_service()
+        
+        # Extract score from annotation or scores
+        score = None
+        if data.get("scores"):
+            score = data["scores"].get("overall_score")
+        if score is None and data.get("annotation"):
+            score = data["annotation"].get("score")
+        
+        # Ingest to KB
+        result = await kb_service.ingest(
+            data=data,
+            question=data.get("question", ""),
+            answer=data.get("answer", ""),
+            score=score,
+            remark=remark
+        )
+        
+        if result.success:
+            # Update status to KB_INGESTED
+            await self.es_service.update_data(data_id, {
+                "status": DataStatus.KB_INGESTED.value,
+                "kb_status": DataStatus.KB_INGESTED.value,
+                "kb_ingested_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+                "kb_error_message": ""
+            })
+            logger.info(f"KB ingestion successful: data_id={data_id}, kb_doc_id={result.kb_doc_id}")
+            return {
+                "success": True, 
+                "message": "Successfully ingested to Knowledge Base",
+                "kb_doc_id": result.kb_doc_id
+            }
+        else:
+            # Update status to KB_FAILED
+            await self.es_service.update_data(data_id, {
+                "status": DataStatus.KB_FAILED.value,
+                "kb_status": DataStatus.KB_FAILED.value,
+                "kb_error_message": result.message
+            })
+            logger.error(f"KB ingestion failed: data_id={data_id}, error={result.message}")
+            return {
+                "success": False, 
+                "message": f"KB ingestion failed: {result.message}"
+            }
+    
+    async def ingest_batch_to_kb(
+        self, 
+        data_ids: List[str], 
+        skip_on_error: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Batch ingest data to Knowledge Base
+        
+        Args:
+            data_ids: List of data IDs to ingest
+            skip_on_error: Whether to skip remaining items on error
+        
+        Returns:
+            Dict with batch ingestion results
+        """
+        if not data_ids:
+            return {
+                "success": False,
+                "message": "No data IDs provided",
+                "total": 0,
+                "success_count": 0,
+                "failed_count": 0
+            }
+        
+        # Get KB service
+        kb_service = get_kb_service()
+        
+        if not kb_service.is_enabled():
+            return {
+                "success": False,
+                "message": "KB ingestion is not enabled. Please configure QA_KB_ENDPOINT and QA_KB_ID.",
+                "total": len(data_ids),
+                "success_count": 0,
+                "failed_count": len(data_ids)
+            }
+        
+        # Collect data for batch ingestion
+        data_list = []
+        for data_id in data_ids:
+            data = await self.es_service.get_data_by_id(data_id)
+            if data:
+                data_list.append(data)
+        
+        if not data_list:
+            return {
+                "success": False,
+                "message": "No valid data found for ingestion",
+                "total": len(data_ids),
+                "success_count": 0,
+                "failed_count": len(data_ids)
+            }
+        
+        # Batch ingest
+        result = await kb_service.ingest_batch(data_list, skip_on_error=skip_on_error)
+        
+        # Update status for each result
+        for idx, item in enumerate(result.get("results", [])):
+            if item.get("success"):
+                data_id = item.get("data_id")
+                # Update to KB_INGESTED
+                await self.es_service.update_data(data_id, {
+                    "status": DataStatus.KB_INGESTED.value,
+                    "kb_status": DataStatus.KB_INGESTED.value,
+                    "kb_ingested_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+                    "kb_error_message": ""
+                })
+            else:
+                data_id = item.get("data_id")
+                # Update to KB_FAILED
+                await self.es_service.update_data(data_id, {
+                    "status": DataStatus.KB_FAILED.value,
+                    "kb_status": DataStatus.KB_FAILED.value,
+                    "kb_error_message": item.get("error", "Unknown error")
+                })
+        
+        return result
 
 
 # Global Service Instance
