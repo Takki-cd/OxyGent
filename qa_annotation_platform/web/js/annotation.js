@@ -677,6 +677,50 @@ async function viewData(dataId) {
     }
 }
 
+// Knowledge Base Section Renderer
+function renderKBSection(data) {
+    let kbContent = '';
+    
+    if (data.status === 'kb_ingested') {
+        kbContent = `
+            <div class="kb-section">
+                <div class="section-header success">
+                    <span class="section-icon">✅</span>
+                    <span class="section-title">Knowledge Base Ingestion Successful</span>
+                </div>
+                <div class="kb-content">
+                    <div class="kb-info-row">
+                        <span class="kb-label">Ingested At:</span>
+                        <span class="kb-value">${formatDateTimeFull(data.kb_ingested_at)}</span>
+                    </div>
+                    ${data.kb_document_id ? `
+                    <div class="kb-info-row">
+                        <span class="kb-label">Document ID:</span>
+                        <span class="kb-value">${escapeHtml(data.kb_document_id)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    } else if (data.status === 'kb_failed') {
+        kbContent = `
+            <div class="review-section">
+                <div class="review-header">
+                    <span class="review-icon">🔄</span>
+                    <span class="review-title">KB Ingestion Failed, Please Retry</span>
+                </div>
+                <div class="review-actions">
+                    <button class="btn" onclick="retryKBIngestion('${data.data_id}')" style="width: 100%; background: #F59E0B; color: #fff;">
+                        🔄 Retry KB Ingestion
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    return kbContent;
+}
+
 function renderDataDetail(data) {
     const drawerBody = document.getElementById('drawerBody');
     const isPending = data.status === 'pending';
@@ -741,26 +785,33 @@ function renderDataDetail(data) {
             </table>
         </div>
 
-        <!-- QA Content - Key Area -->
-        <div class="detail-qa-section">
-            <div class="qa-block">
-                <div class="qa-block-header">
-                    <span class="qa-block-icon">❓</span>
-                    <span class="qa-block-title">Question / Input</span>
-                </div>
-                <div class="qa-block-content ${isJSON(data.question) ? 'json-content' : ''}">
-                    ${formatContent(data.question)}
-                </div>
+        <!-- QA Content - Merged Section -->
+        <div class="detail-annotation-section">
+            <div class="section-header">
+                <span class="section-icon">💬</span>
+                <span class="section-title">QA Content</span>
             </div>
-            
-            <div class="qa-block">
-                <div class="qa-block-header">
-                    <span class="qa-block-icon">💡</span>
-                    <span class="qa-block-title">Answer / Output</span>
-                </div>
-                <div class="qa-block-content ${isJSON(data.answer) ? 'json-content' : ''}">
-                    ${formatContent(data.answer)}
-                </div>
+            <div class="annotation-content">
+                <table class="annotation-kv-table">
+                    <tbody>
+                        <tr>
+                            <td style="width: 80px; font-weight: 600;">Question</td>
+                            <td>
+                                <div class="${isJSON(data.question) ? 'json-content' : ''}">
+                                    ${formatContent(data.question)}
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="width: 80px; font-weight: 600;">Answer</td>
+                            <td>
+                                <div class="${isJSON(data.answer) ? 'json-content' : ''}">
+                                    ${formatContent(data.answer)}
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -1098,6 +1149,41 @@ async function confirmReject(dataId) {
 }
 
 // ============================================================================
+// Drawer Control
+// ============================================================================
+
+function openDrawer() {
+    document.getElementById('drawerOverlay').classList.add('show');
+    document.getElementById('detailDrawer').classList.add('show');
+}
+
+function closeDrawer() {
+    document.getElementById('drawerOverlay').classList.remove('show');
+    document.getElementById('detailDrawer').classList.remove('show');
+    state.selectedData = null;
+    renderDataList();
+}
+
+// ============================================================================
+// Sidebar Expand/Collapse
+// ============================================================================
+
+function toggleSection(sectionId) {
+    const header = document.querySelector(`.sidebar-section-header:has(+ #${sectionId}Content)`);
+    const content = document.getElementById(`${sectionId}Content`);
+    const icon = document.getElementById(`${sectionId}ToggleIcon`);
+    
+    if (header && content) {
+        header.classList.toggle('section-collapsed');
+        content.classList.toggle('collapsed');
+    }
+    
+    if (icon) {
+        icon.textContent = header?.classList.contains('section-collapsed') ? '▶' : '▼';
+    }
+}
+
+// ============================================================================
 // Knowledge Base Ingestion Operations
 // ============================================================================
 
@@ -1126,6 +1212,32 @@ async function ingestToKB(dataId) {
     }
 }
 
+// Retry KB Ingestion Operation
+async function retryKBIngestion(dataId) {
+    if (!state.kbEnabled) {
+        showToast('Knowledge Base is not configured. Please configure QA_KB_ENDPOINT and QA_KB_ID.', 'warning');
+        return;
+    }
+    
+    try {
+        showToast('Retrying KB ingestion...', 'info');
+        const result = await apiPost(`/data/${dataId}/ingest-kb`, { retry: true });
+        
+        if (result.success) {
+            showToast('Successfully ingested to Knowledge Base', 'success');
+        } else {
+            showToast('Failed to ingest: ' + result.message, 'error');
+        }
+        
+        closeDrawer();
+        loadData(state.currentPage);
+        loadStats();
+    } catch (error) {
+        console.error('KB retry ingestion failed:', error);
+        showToast('KB retry ingestion failed: ' + error.message, 'error');
+    }
+}
+
 // Export Global Functions
 window.changePage = changePage;
 window.applyFilters = applyFilters;
@@ -1143,6 +1255,7 @@ window.closeRejectDialog = closeRejectDialog;
 window.confirmReject = confirmReject;
 // Knowledge Base Functions
 window.ingestToKB = ingestToKB;
+window.retryKBIngestion = retryKBIngestion;
 
 
 // ============================================================================

@@ -8,7 +8,7 @@ Replace original tasks API, simplified design:
 - Use caller/callee to describe call chain
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -221,12 +221,6 @@ class IngestKBRequest(BaseModel):
     remark: Optional[str] = None
 
 
-class BatchIngestKBRequest(BaseModel):
-    """Batch Knowledge Base Ingestion Request"""
-    data_ids: List[str]
-    skip_on_error: bool = True
-
-
 @router.post("/{data_id}/ingest-kb")
 async def ingest_to_kb(data_id: str, request: IngestKBRequest = None):
     """
@@ -239,27 +233,6 @@ async def ingest_to_kb(data_id: str, request: IngestKBRequest = None):
     
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["message"])
-    
-    return result
-
-
-@router.post("/batch/ingest-kb")
-async def batch_ingest_to_kb(request: BatchIngestKBRequest):
-    """
-    Batch ingest data to Knowledge Base
-    
-    Trigger KB ingestion for multiple data items at once.
-    Only approved data (status=approved) can be ingested.
-    """
-    service = get_annotation_service()
-    result = await service.ingest_batch_to_kb(
-        request.data_ids, 
-        skip_on_error=request.skip_on_error
-    )
-    
-    if not result.get("success", False) and result.get("failed_count", 0) > 0:
-        # Return partial success
-        return result
     
     return result
 

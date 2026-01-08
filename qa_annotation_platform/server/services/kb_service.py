@@ -95,12 +95,11 @@ class KBService:
             source_request_id=data.get("source_request_id"),
             data_type=data.get("data_type"),
             priority=data.get("priority"),
-            category=data.get("category"),
-            tags=data.get("tags", [])
+            category=data.get("category")
         )
         
         # Build API URL
-        url = f"{self.config.endpoint}/api/v1/kb_base/{self.config.kb_id}/ingest_file"
+        url = f"{self.config.endpoint}/api/v1/kb_base/{self.config.kb_id}/ingest_data"
         
         last_error = None
         for attempt in range(self.config.retry_times):

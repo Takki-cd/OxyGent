@@ -6,23 +6,16 @@ Simple and direct execution
 """
 import os
 import sys
+import uvicorn
+from qa_annotation_platform.server.config import get_app_config
 
 # First add project root directory (critical!)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-import uvicorn
 
-# Initialize Oxygent configuration (so LocalEs can find the correct cache_dir)
-from oxygent.config import Config
-Config.load_from_json(os.path.join(project_root, "config.json"))
-
-
-if __name__ == "__main__":
-    # Read port configuration from config file
-    from qa_annotation_platform.server.config import get_app_config
-    
+if __name__ == "__main__":    
     config = get_app_config()
     
     uvicorn.run(
