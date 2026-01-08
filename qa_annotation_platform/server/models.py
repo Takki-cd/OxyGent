@@ -369,7 +369,7 @@ class KBIngestionRequest(BaseModel):
     data_type: Optional[str] = Field(None, description="Data type")
     priority: Optional[int] = Field(None, description="Priority")
     category: Optional[str] = Field(None, description="Category")
-    tags: List[str] = Field(default_factory=list, description="Tags")
+    # tags: List[str] = Field(default_factory=list, description="Tags")
     
     class Config:
         json_schema_extra = {

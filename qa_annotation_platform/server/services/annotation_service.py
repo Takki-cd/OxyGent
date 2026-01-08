@@ -236,13 +236,12 @@ class AnnotationService:
     
     # ==================== Knowledge Base Ingestion ====================
     
-    async def ingest_to_kb(self, data_id: str, remark: str = None) -> Dict[str, Any]:
+    async def ingest_to_kb(self, data_id: str) -> Dict[str, Any]:
         """
         Ingest data to Knowledge Base
         
         Args:
             data_id: Data ID to ingest
-            remark: Optional remark for the KB entry
         
         Returns:
             Dict with success status and message
@@ -253,7 +252,7 @@ class AnnotationService:
             return {"success": False, "message": "Data not found"}
         
         # Check status - only approved data can be ingested
-        if data.get("status") not in [DataStatus.APPROVED.value, DataStatus.KB_QUEUED.value, DataStatus.KB_FAILED.value]:
+        if data.get("status") not in [DataStatus.APPROVED.value, DataStatus.KB_FAILED.value]:
             return {
                 "success": False, 
                 "message": f"Cannot ingest data with status '{data.get('status')}'. Only approved data can be ingested."
@@ -263,27 +262,27 @@ class AnnotationService:
         if data.get("kb_status") == DataStatus.KB_INGESTED.value:
             return {"success": False, "message": "Data has already been ingested to KB"}
         
-        # Update status to KB_QUEUED
-        await self.es_service.update_data(data_id, {
-            "status": DataStatus.KB_QUEUED.value,
-            "kb_status": DataStatus.KB_QUEUED.value
-        })
-        
         # Get KB service
         kb_service = get_kb_service()
         
-        # Extract score from annotation or scores
+        # Extract score and remark from annotation
         score = None
-        if data.get("scores"):
-            score = data["scores"].get("overall_score")
-        if score is None and data.get("annotation"):
+        remark = None
+        correct_answer = None
+        if data.get("annotation"):
             score = data["annotation"].get("score")
+            remark = data["annotation"].get("comment")
+            correct_answer = data["annotation"].get("content")
+        
+        # If score not in annotation, check scores
+        if score is None and data.get("scores"):
+            score = data["scores"].get("overall_score")
         
         # Ingest to KB
         result = await kb_service.ingest(
             data=data,
             question=data.get("question", ""),
-            answer=data.get("answer", ""),
+            answer=correct_answer,
             score=score,
             remark=remark
         )

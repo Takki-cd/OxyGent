@@ -688,18 +688,6 @@ function renderKBSection(data) {
                     <span class="section-icon">✅</span>
                     <span class="section-title">Knowledge Base Ingestion Successful</span>
                 </div>
-                <div class="kb-content">
-                    <div class="kb-info-row">
-                        <span class="kb-label">Ingested At:</span>
-                        <span class="kb-value">${formatDateTimeFull(data.kb_ingested_at)}</span>
-                    </div>
-                    ${data.kb_document_id ? `
-                    <div class="kb-info-row">
-                        <span class="kb-label">Document ID:</span>
-                        <span class="kb-value">${escapeHtml(data.kb_document_id)}</span>
-                    </div>
-                    ` : ''}
-                </div>
             </div>
         `;
     } else if (data.status === 'kb_failed') {
@@ -844,8 +832,8 @@ function renderDataDetail(data) {
         <!-- Annotation Form - Only show for pending status -->
         ${isPending ? renderAnnotationForm(data) : ''}
         
-        <!-- Review Action Area - Show review buttons for annotated status -->
-        ${isAnnotated ? renderReviewSection(data) : ''}
+        <!-- Review Action Area - Show for annotated or approved status -->
+        ${(isAnnotated || data.status === 'approved') ? renderReviewSection(data) : ''}
         
         <!-- Knowledge Base Section - Show for approved status or KB-related status -->
         ${(data.status === 'approved' || data.status === 'kb_ingested' || data.status === 'kb_failed') ? renderKBSection(data) : ''}
@@ -990,21 +978,26 @@ function renderAnnotationForm(data) {
     `;
 }
 
-// Review Action Area - Show review buttons only, no annotation form
+// Review Action Area - Show review buttons for annotated status, KB action for approved status
 function renderReviewSection(data) {
-    let actionsHtml = `
-        <button class="btn btn-success" onclick="approveData('${data.data_id}')">
-            ✅ Approve Annotation
-        </button>
-        <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
-            ❌ Reject Annotation
-        </button>
-    `;
+    let actionsHtml = '';
     
-    // Add KB actions if enabled and data is approved
-    if (state.kbEnabled && data.status === 'approved') {
-        actionsHtml += `
-            <button class="btn btn-primary" onclick="ingestToKB('${data.data_id}')" style="margin-left: 8px;">
+    // For annotated status: show Approve/Reject buttons
+    if (data.status === 'annotated') {
+        actionsHtml = `
+            <button class="btn btn-success" onclick="approveData('${data.data_id}')">
+                ✅ Approve Annotation
+            </button>
+            <button class="btn btn-danger" onclick="rejectData('${data.data_id}')">
+                ❌ Reject Annotation
+            </button>
+        `;
+    }
+    
+    // For approved status: show KB action button
+    if (data.status === 'approved') {
+        actionsHtml = `
+            <button class="btn btn-primary" onclick="ingestToKB('${data.data_id}')" style="width: 100%;">
                 📤 Approve & Ingest to KB
             </button>
         `;
@@ -1014,7 +1007,7 @@ function renderReviewSection(data) {
         <div class="review-section">
             <div class="review-header">
                 <span class="review-icon">👁️</span>
-                <span class="review-title">Annotation Review</span>
+                <span class="review-title">${data.status === 'approved' ? 'Knowledge Base' : 'Annotation Review'}</span>
             </div>
             <div class="review-actions">
                 ${actionsHtml}

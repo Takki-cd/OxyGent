@@ -216,20 +216,16 @@ async def reject_data(data_id: str, request: RejectRequest):
 
 # ==================== Knowledge Base Ingestion Endpoints ====================
 
-class IngestKBRequest(BaseModel):
-    """Knowledge Base Ingestion Request"""
-    remark: Optional[str] = None
-
-
 @router.post("/{data_id}/ingest-kb")
-async def ingest_to_kb(data_id: str, request: IngestKBRequest = None):
+async def ingest_to_kb(data_id: str):
     """
     Ingest data to Knowledge Base
     
     Trigger KB ingestion for a single approved data item.
+    Remark will be extracted from annotation.comment.
     """
     service = get_annotation_service()
-    result = await service.ingest_to_kb(data_id, request.remark if request else None)
+    result = await service.ingest_to_kb(data_id)
     
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["message"])

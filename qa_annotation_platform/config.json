@@ -14,8 +14,8 @@
     },
     "kb": {
         "enabled": true,
-        "endpoint": "http://localhost:8000",
-        "kb_id": "1001",
+        "endpoint": "http://0.0.0.0:8000",
+        "kb_id": "4a8c9b2f3374c3e2d485f27f74bebc87",
         "auto_ingest": false,
         "timeout": 30,
         "retry_times": 3,
