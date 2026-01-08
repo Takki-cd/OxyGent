@@ -29,7 +29,6 @@ let state = {
         kb_ingested: 0,
         kb_failed: 0
     },
-    kbEnabled: false,
     selectedData: null,
     sidebarWidth: 320,
     sidebarMinWidth: 200,
@@ -310,17 +309,8 @@ async function loadStats() {
             kb_ingested: stats.kb_ingested || 0,
             kb_failed: stats.kb_failed || 0
         };
-        
-        // Load KB status
-        try {
-            const kbStatus = await apiGet('/data/kb/status');
-            state.kbEnabled = kbStatus.enabled || false;
-        } catch (e) {
-            state.kbEnabled = false;
-        }
-        
+
         renderStats();
-        renderKBStats();
     } catch (error) {
         console.error('Failed to fetch statistics:', error);
     }
@@ -454,64 +444,33 @@ function setDefaultTimeRange() {
 // ============================================================================
 
 function renderStats() {
-    const total = state.stats.pending + state.stats.annotated + 
-                  state.stats.approved + state.stats.rejected;
-    
+    // Calculate total including all stats
+    const total = state.stats.pending + state.stats.annotated +
+                  state.stats.approved + state.stats.rejected +
+                  state.stats.kb_ingested + state.stats.kb_failed;
+
     const pendingPercent = total > 0 ? (state.stats.pending / total * 100) : 0;
     const annotatedPercent = total > 0 ? (state.stats.annotated / total * 100) : 0;
     const approvedPercent = total > 0 ? (state.stats.approved / total * 100) : 0;
     const rejectedPercent = total > 0 ? (state.stats.rejected / total * 100) : 0;
-    
+    const kbIngestedPercent = total > 0 ? (state.stats.kb_ingested / total * 100) : 0;
+    const kbFailedPercent = total > 0 ? (state.stats.kb_failed / total * 100) : 0;
+
+    // Update 2x3 stats grid (order: Pending, Annotated, Approved, Rejected, KB Ingested, KB Failed)
     document.getElementById('statPending').textContent = state.stats.pending;
     document.getElementById('statAnnotated').textContent = state.stats.annotated;
     document.getElementById('statApproved').textContent = state.stats.approved;
     document.getElementById('statRejected').textContent = state.stats.rejected;
-    
-    document.getElementById('progressPending').style.width = `${pendingPercent}%`;
-    document.getElementById('progressAnnotated').style.width = `${annotatedPercent}%`;
-    document.getElementById('progressApproved').style.width = `${approvedPercent}%`;
-    document.getElementById('progressRejected').style.width = `${rejectedPercent}%`;
-    
-    // Render KB stats if enabled
-    renderKBStats();
-}
+    document.getElementById('statKbIngested').textContent = state.stats.kb_ingested;
+    document.getElementById('statKbFailed').textContent = state.stats.kb_failed;
 
-function renderKBStats() {
-    // Check if KB stats elements exist, if not create them
-    let kbStatsContainer = document.getElementById('kbStatsContainer');
-    if (!kbStatsContainer) {
-        // Create KB stats container
-        const progressSection = document.querySelector('.progress-bar-container');
-        if (progressSection) {
-            kbStatsContainer = document.createElement('div');
-            kbStatsContainer.id = 'kbStatsContainer';
-            kbStatsContainer.className = 'kb-stats-container';
-            kbStatsContainer.innerHTML = `
-                <div class="progress-bar-label" style="margin-top: 12px;">
-                    <span>📚 Knowledge Base</span>
-                    ${state.kbEnabled ? '<span class="kb-enabled-badge">Enabled</span>' : '<span class="kb-disabled-badge">Not Configured</span>'}
-                </div>
-                <div class="kb-stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px;">
-                    <div class="kb-stat-block ingested">
-                        <div class="kb-stat-value" id="statKbIngested">0</div>
-                        <div class="kb-stat-label">Ingested</div>
-                    </div>
-                    <div class="kb-stat-block failed">
-                        <div class="kb-stat-value" id="statKbFailed">0</div>
-                        <div class="kb-stat-label">Failed</div>
-                    </div>
-                </div>
-            `;
-            progressSection.parentNode.insertBefore(kbStatsContainer, progressSection.nextSibling);
-        }
-    }
-    
-    // Update KB stats values
-    const kbIngestedEl = document.getElementById('statKbIngested');
-    const kbFailedEl = document.getElementById('statKbFailed');
-    
-    if (kbIngestedEl) kbIngestedEl.textContent = state.stats.kb_ingested || 0;
-    if (kbFailedEl) kbFailedEl.textContent = state.stats.kb_failed || 0;
+    // Update progress bar (stack all segments in legend order)
+    document.getElementById('progressApproved').style.width = `${approvedPercent}%`;
+    document.getElementById('progressAnnotated').style.width = `${annotatedPercent}%`;
+    document.getElementById('progressRejected').style.width = `${rejectedPercent}%`;
+    document.getElementById('progressPending').style.width = `${pendingPercent}%`;
+    document.getElementById('progressKbIngested').style.width = `${kbIngestedPercent}%`;
+    document.getElementById('progressKbFailed').style.width = `${kbFailedPercent}%`;
 }
 
 function renderDataList() {
@@ -621,8 +580,8 @@ function getStatusText(status) {
         annotated: 'Annotated',
         approved: 'Approved',
         rejected: 'Rejected',
-        kb_ingested: 'Ingested',
-        kb_failed: 'Failed'
+        kb_ingested: 'KB Ingested',
+        kb_failed: 'KB Failed'
     };
     return statusMap[status] || status;
 }

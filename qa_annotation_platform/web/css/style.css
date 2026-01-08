@@ -227,10 +227,11 @@ body {
     background: #fff;
 }
 
-/* 2x2 Stats Grid */
-.stats-grid-2x2 {
+/* 2x3 Stats Grid */
+.stats-grid-2x3 {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
     gap: 8px;
     margin-bottom: 12px;
 }
@@ -258,6 +259,8 @@ body {
 .stat-block.annotated .stat-value { color: #10B981; }
 .stat-block.approved .stat-value { color: #155EEF; }
 .stat-block.rejected .stat-value { color: #EF4444; }
+.stat-block.kb-ingested .stat-value { color: #8B5CF6; }
+.stat-block.kb-failed .stat-value { color: #DC2626; }
 
 .progress-bar-container {
     background: #F5F6F8;
@@ -287,13 +290,18 @@ body {
 .progress-bar-fill.annotated { background: #10B981; }
 .progress-bar-fill.pending { background: #F59E0B; }
 .progress-bar-fill.rejected { background: #EF4444; }
+.progress-bar-fill.kb-ingested { background: #8B5CF6; }
+.progress-bar-fill.kb-failed { background: #DC2626; }
 
 .progress-bar-legend {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 6px 8px;
     margin-top: 8px;
     font-size: 10px;
     color: #999;
+    justify-items: center;
 }
 
 .legend-item {
@@ -312,6 +320,8 @@ body {
 .legend-dot.annotated { background: #10B981; }
 .legend-dot.pending { background: #F59E0B; }
 .legend-dot.rejected { background: #EF4444; }
+.legend-dot.kb-ingested { background: #8B5CF6; }
+.legend-dot.kb-failed { background: #DC2626; }
 
 /* Main Content Area */
 .annotation-main {

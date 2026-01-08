@@ -482,6 +482,18 @@
     border-right: 1px solid #E8E8EB;
 }
 
+.annotation-kv-table td pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.annotation-kv-table td .json-content pre {
+    white-space: pre-wrap;
+}
+
 .annotation-kv-key {
     width: 100px;
     font-weight: 500;

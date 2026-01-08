@@ -63,6 +63,8 @@
                                 <option value="annotated">Annotated</option>
                                 <option value="approved">Approved</option>
                                 <option value="rejected">Rejected</option>
+                                <option value="kb_ingested">KB Ingested</option>
+                                <option value="kb_failed">KB Failed</option>
                             </select>
                             <select class="filter-select-full" id="filterPriority" onchange="applyFilters()" style="margin-top: 8px;">
                                 <option value="">All Priorities</option>
@@ -163,8 +165,8 @@
                         <span class="toggle-icon" id="progressToggleIcon">▼</span>
                     </div>
                     <div class="section-content" id="progressContent">
-                        <!-- 2x2 Stats Grid -->
-                        <div class="stats-grid-2x2">
+                        <!-- 2x3 Stats Grid -->
+                        <div class="stats-grid-2x3">
                             <div class="stat-block pending">
                                 <div class="stat-value" id="statPending">0</div>
                                 <div class="stat-label">Pending</div>
@@ -181,6 +183,14 @@
                                 <div class="stat-value" id="statRejected">0</div>
                                 <div class="stat-label">Rejected</div>
                             </div>
+                            <div class="stat-block kb-ingested">
+                                <div class="stat-value" id="statKbIngested">0</div>
+                                <div class="stat-label">KB Ingested</div>
+                            </div>
+                            <div class="stat-block kb-failed">
+                                <div class="stat-value" id="statKbFailed">0</div>
+                                <div class="stat-label">KB Failed</div>
+                            </div>
                         </div>
                         <!-- Progress Bar -->
                         <div class="progress-bar-container">
@@ -190,12 +200,16 @@
                                 <div class="progress-bar-fill annotated" id="progressAnnotated" style="width: 0%"></div>
                                 <div class="progress-bar-fill rejected" id="progressRejected" style="width: 0%"></div>
                                 <div class="progress-bar-fill pending" id="progressPending" style="width: 100%"></div>
+                                <div class="progress-bar-fill kb-ingested" id="progressKbIngested" style="width: 0%"></div>
+                                <div class="progress-bar-fill kb-failed" id="progressKbFailed" style="width: 0%"></div>
                             </div>
                             <div class="progress-bar-legend">
-                                <span class="legend-item"><span class="legend-dot approved"></span>Approved</span>
-                                <span class="legend-item"><span class="legend-dot annotated"></span>Annotated</span>
-                                <span class="legend-item"><span class="legend-dot rejected"></span>Rejected</span>
                                 <span class="legend-item"><span class="legend-dot pending"></span>Pending</span>
+                                <span class="legend-item"><span class="legend-dot annotated"></span>Annotated</span>
+                                <span class="legend-item"><span class="legend-dot approved"></span>Approved</span>
+                                <span class="legend-item"><span class="legend-dot rejected"></span>Rejected</span>
+                                <span class="legend-item"><span class="legend-dot kb-ingested"></span>KB Ingested</span>
+                                <span class="legend-item"><span class="legend-dot kb-failed"></span>KB Failed</span>
                             </div>
                         </div>
                     </div>
@@ -217,9 +231,9 @@
                         <thead>
                             <tr>
                                 <th data-column="id" style="width: 160px;">ID</th>
-                                <th data-column="priority" style="width: 50px;">Priority</th>
-                                <th data-column="status" style="width: 70px;">Status</th>
-                                <th data-column="data_type" style="width: 60px;">Type</th>
+                                <th data-column="priority" style="width: 60px;">Priority</th>
+                                <th data-column="status" style="width: 90px;">Status</th>
+                                <th data-column="data_type" style="width: 70px;">Type</th>
                                 <th data-column="caller_callee" style="width: 180px;">Call Relationship</th>
                                 <th data-column="question" style="width: 25%;">Question</th>
                                 <th data-column="group_trace" style="width: 160px;">Group / Trace</th>
