@@ -345,6 +345,30 @@ class LocalEs(BaseEs):
                 for condition in filter_conditions:
                     filtered_docs = self._filter_docs(filtered_docs, condition)
 
+            # Process "should" conditions (should match - OR logic)
+            if "should" in bool_query:
+                should_conditions = bool_query["should"]
+                filtered_docs = []
+                for doc in docs:
+                    for cond in should_conditions:
+                        if self._match_single_condition(doc, cond):
+                            filtered_docs.append(doc)
+                            break
+                return filtered_docs
+
+            # Process "must_not" conditions (must not match - exclude)
+            if "must_not" in bool_query:
+                must_not_conditions = bool_query["must_not"]
+                filtered_docs = []
+                for doc in filtered_docs:
+                    exclude = False
+                    for cond in must_not_conditions:
+                        if self._match_single_condition(doc, cond):
+                            exclude = True
+                            break
+                    if not exclude:
+                        filtered_docs.append(doc)
+
             return filtered_docs
 
         if "range" in query:
