@@ -1,1 +1,0 @@
-# QA Annotation Platform Services
